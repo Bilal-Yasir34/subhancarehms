@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type {
   Patient, Doctor, Appointment, Invoice, Department, ActivityItem, Notification,
@@ -508,15 +509,51 @@ export const api = {
     }));
   },
   async getNotifications(): Promise<Notification[]> {
-    const { data, error } = await supabase.from('notifications').select('*').order('time', { ascending: false });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    // Fetch the user's role from staff_profiles
+    const { data: profile } = await supabase
+      .from('staff_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const isStaffRole = profile?.role === 'admin' || profile?.role === 'doctor' || profile?.role === 'general_staff';
+
+    let query = supabase.from('notifications').select('*').order('time', { ascending: false });
+
+    if (isStaffRole) {
+      // Staff see broadcast notifications + any individual ones addressed to them
+      query = query.or(`target_type.eq.broadcast,and(target_type.eq.individual,target_user_id.eq.${user.id})`);
+    } else {
+      // Patients (and others) only see individual notifications addressed to them
+      query = query.eq('target_type', 'individual').eq('target_user_id', user.id);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return (data ?? []).map((r) => ({
-      id: r.id, title: r.title, message: r.message, time: r.time, read: r.read, type: r.type,
+      id: r.id,
+      title: r.title,
+      message: r.message,
+      time: r.time,
+      read: r.read,
+      type: r.type,
+      targetType: r.target_type ?? 'broadcast',
+      targetUserId: r.target_user_id ?? undefined,
     }));
   },
 
   async markNotificationsRead(): Promise<void> {
-    const { error } = await supabase.from('notifications').update({ read: true }).eq('read', false);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    // Only mark notifications that are visible to this user as read
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('read', false)
+      .or(`target_type.eq.broadcast,and(target_type.eq.individual,target_user_id.eq.${user.id})`);
     if (error) throw error;
   },
 
@@ -526,7 +563,32 @@ export const api = {
   },
 
   async clearNotifications(): Promise<void> {
-    const { error } = await supabase.from('notifications').delete().gt('id', '00000000-0000-0000-0000-000000000000');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    // Only delete notifications visible to this user
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .or(`target_type.eq.broadcast,and(target_type.eq.individual,target_user_id.eq.${user.id})`);
+    if (error) throw error;
+  },
+
+  async sendNotification(payload: {
+    title: string;
+    message: string;
+    type: 'info' | 'success' | 'warning' | 'error';
+    targetType: 'broadcast' | 'individual';
+    targetUserId?: string;
+  }): Promise<void> {
+    const { error } = await supabase.from('notifications').insert({
+      title: payload.title,
+      message: payload.message,
+      type: payload.type,
+      read: false,
+      time: new Date().toISOString(),
+      target_type: payload.targetType,
+      target_user_id: payload.targetUserId ?? null,
+    });
     if (error) throw error;
   },
 
@@ -727,17 +789,31 @@ export const api = {
   },
 
   async createStaffUser(email: string, password: string, fullName: string, role: UserRole, doctorId?: string, department?: string, patientId?: string): Promise<void> {
-    const { data, error } = await supabase.auth.signUp({
+    // Use a separate, isolated Supabase client so that signUp does NOT fire
+    // onAuthStateChange on the main client. This keeps the admin's session and
+    // AuthContext completely untouched during new-user registration.
+    const isolatedClient = createClient(
+      import.meta.env.VITE_SUPABASE_URL as string,
+      import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+    );
+
+    const { data, error } = await isolatedClient.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } },
     });
     if (error) throw error;
+
     if (data.user) {
-      await new Promise((r) => setTimeout(r, 300));
-      await supabase.from('staff_profiles')
+      // Wait briefly for the DB trigger to create the staff_profiles row
+      await new Promise((r) => setTimeout(r, 400));
+      // Update the new user's profile with the correct role using the main client
+      // (which still holds the admin session and has the needed permissions)
+      const { error: updateError } = await supabase.from('staff_profiles')
         .update({ role, doctor_id: doctorId ?? null, patient_id: patientId ?? null, department: department ?? null })
         .eq('id', data.user.id);
+      if (updateError) throw updateError;
     }
   },
 

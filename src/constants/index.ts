@@ -23,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Register User', path: '/register-user', icon: 'UserPlus', roles: ['admin'] },
   { label: 'My Patients', path: '/my-patients', icon: 'HeartPulse', roles: ['doctor'] },
   { label: 'My Schedule', path: '/my-schedule', icon: 'CalendarClock', roles: ['doctor'] },
+  { label: 'Notifications', path: '/notifications', icon: 'Bell', roles: ['admin', 'doctor', 'general_staff', 'patient'] },
   { label: 'Settings', path: '/settings', icon: 'Settings', roles: ['admin', 'doctor', 'general_staff', 'patient'] },
 ];
 

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { User, Bell, Shield, Palette, Moon, Sun, Mail } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, Bell, Shield, Palette, Moon, Sun, Mail, Eye, EyeOff, Lock, CheckCircle2, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardBody, CardHeader, CardTitle, Input, Button, Avatar, Badge, Select } from '../../components/ui';
 import { Tabs } from '../../components/Tabs';
@@ -26,6 +26,9 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     setName(user?.name ?? '');
@@ -77,43 +80,70 @@ export function SettingsPage() {
     }
   };
 
-  const handleUpdatePassword = async () => {
+  const handleUpdatePassword = useCallback(async () => {
     if (!user) return;
     if (!currentPassword || !newPassword || !confirmPassword) {
       toast.error('Please fill in all password fields');
       return;
     }
-    if (newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters');
+    if (newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters');
       return;
     }
     if (newPassword !== confirmPassword) {
       toast.error('New passwords do not match');
       return;
     }
+    if (currentPassword === newPassword) {
+      toast.error('New password must be different from your current password');
+      return;
+    }
 
     setSavingPassword(true);
     try {
-      // Re-authenticate with the current password before allowing a change
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      // Verify current password using an isolated client so that
+      // signInWithPassword does NOT trigger onAuthStateChange on the main
+      // client and does NOT switch the active session / UI.
+      const { createClient } = await import('@supabase/supabase-js');
+      const verifyClient = createClient(
+        import.meta.env.VITE_SUPABASE_URL as string,
+        import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+        { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
+      );
+      const { error: signInError } = await verifyClient.auth.signInWithPassword({
         email: user.email,
         password: currentPassword,
       });
-      if (signInError) throw new Error('Current password is incorrect');
+      if (signInError) {
+        toast.error('Current password is incorrect');
+        return;
+      }
 
+      // Now update the password on the main authenticated session
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
 
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      toast.success('Password updated');
+      toast.success('Password updated successfully! Use your new password next time you log in.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update password');
     } finally {
       setSavingPassword(false);
     }
-  };
+  }, [user, currentPassword, newPassword, confirmPassword]);
+
+  // Password strength helpers
+  const pwChecks = [
+    { label: 'At least 8 characters',     ok: newPassword.length >= 8 },
+    { label: 'Contains a number',          ok: /\d/.test(newPassword) },
+    { label: 'Contains a letter',          ok: /[a-zA-Z]/.test(newPassword) },
+    { label: 'Passwords match',            ok: newPassword.length > 0 && newPassword === confirmPassword },
+  ];
+  const pwStrength = pwChecks.filter((c) => c.ok).length;
+  const pwStrengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][pwStrength];
+  const pwStrengthColor = ['', 'bg-danger-500', 'bg-warning-500', 'bg-secondary-400', 'bg-secondary-500'][pwStrength];
 
   return (
     <div className="space-y-6">
@@ -185,21 +215,137 @@ export function SettingsPage() {
           {tab === 'security' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <Card>
-                <CardHeader><CardTitle>Security</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Lock className="h-5 w-5 text-primary-500" />
+                    Change Password
+                  </CardTitle>
+                </CardHeader>
                 <CardBody className="space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input label="Current Password" type="password" placeholder="••••••••" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
-                    <div />
-                    <Input label="New Password" type="password" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                    <Input label="Confirm Password" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                  {/* Current password */}
+                  <div className="relative">
+                    <Input
+                      label="Current Password"
+                      type={showCurrent ? 'text' : 'password'}
+                      placeholder="Enter your current password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrent((v) => !v)}
+                      className="absolute right-3 top-[34px] text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
-                  <div className="flex justify-end pt-4 border-t border-ink-100 dark:border-ink-800">
-                    <Button onClick={handleUpdatePassword} loading={savingPassword}>Update Password</Button>
+
+                  <div className="h-px bg-ink-100 dark:bg-ink-800" />
+
+                  {/* New + confirm */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="relative">
+                      <Input
+                        label="New Password"
+                        type={showNew ? 'text' : 'password'}
+                        placeholder="At least 8 characters"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNew((v) => !v)}
+                        className="absolute right-3 top-[34px] text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        label="Confirm New Password"
+                        type={showConfirm ? 'text' : 'password'}
+                        placeholder="Repeat new password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirm((v) => !v)}
+                        className="absolute right-3 top-[34px] text-ink-400 hover:text-ink-600 dark:hover:text-ink-300 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Strength bar + requirements */}
+                  <AnimatePresence>
+                    {newPassword.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-3 overflow-hidden"
+                      >
+                        {/* Strength bar */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-ink-500 dark:text-ink-400">Password strength</span>
+                            <span className={cn(
+                              'font-semibold',
+                              pwStrength <= 1 ? 'text-danger-500' :
+                              pwStrength === 2 ? 'text-warning-500' :
+                              'text-secondary-500',
+                            )}>{pwStrengthLabel}</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1">
+                            {[0, 1, 2, 3].map((i) => (
+                              <div
+                                key={i}
+                                className={cn(
+                                  'h-1.5 rounded-full transition-all duration-300',
+                                  i < pwStrength ? pwStrengthColor : 'bg-ink-200 dark:bg-ink-700',
+                                )}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Requirements checklist */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {pwChecks.map((c) => (
+                            <div key={c.label} className="flex items-center gap-2 text-xs">
+                              {c.ok
+                                ? <CheckCircle2 className="h-3.5 w-3.5 text-secondary-500 shrink-0" />
+                                : <XCircle className="h-3.5 w-3.5 text-ink-300 dark:text-ink-600 shrink-0" />}
+                              <span className={c.ok ? 'text-secondary-600 dark:text-secondary-400' : 'text-ink-400 dark:text-ink-500'}>
+                                {c.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="flex justify-end pt-2 border-t border-ink-100 dark:border-ink-800">
+                    <Button
+                      onClick={handleUpdatePassword}
+                      loading={savingPassword}
+                      disabled={savingPassword || pwStrength < 3}
+                      leftIcon={<Lock className="h-4 w-4" />}
+                    >
+                      Update Password
+                    </Button>
                   </div>
                 </CardBody>
               </Card>
             </motion.div>
           )}
+
 
           {tab === 'appearance' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>

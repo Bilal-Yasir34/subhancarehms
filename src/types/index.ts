@@ -147,6 +147,8 @@ export interface Notification {
   time: string;
   read: boolean;
   type: 'info' | 'success' | 'warning' | 'error';
+  targetType: 'broadcast' | 'individual';
+  targetUserId?: string;
 }
 
 export interface InventoryItem {

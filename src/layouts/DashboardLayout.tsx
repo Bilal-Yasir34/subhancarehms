@@ -5,6 +5,12 @@ import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { useMediaQuery } from '../hooks';
 
+const pageVariants = {
+  initial: { opacity: 0, y: 14, filter: 'blur(2px)' },
+  animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
+  exit:    { opacity: 0, y: -8, filter: 'blur(1px)' },
+};
+
 export function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -19,25 +25,28 @@ export function DashboardLayout() {
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
       />
-      <div
-        className="transition-all duration-300"
-        style={{ paddingLeft: isDesktop ? (collapsed ? 76 : 264) : 0 }}
+
+      <motion.div
+        animate={{ paddingLeft: isDesktop ? (collapsed ? 72 : 260) : 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 36 }}
       >
         <Header onMenuClick={() => setMobileOpen(true)} />
+
         <main className="p-4 sm:p-6 lg:p-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
               <Outlet />
             </motion.div>
           </AnimatePresence>
         </main>
-      </div>
+      </motion.div>
     </div>
   );
 }
