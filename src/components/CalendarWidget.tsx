@@ -12,8 +12,8 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export function CalendarWidget({ events = [], onSelect }: CalendarWidgetProps) {
-  const [current, setCurrent] = useState(new Date(2026, 6, 1));
-  const [selected, setSelected] = useState<Date | null>(new Date(2026, 6, 14));
+  const [current, setCurrent] = useState(new Date());
+  const [selected, setSelected] = useState<Date | null>(new Date());
 
   const year = current.getFullYear();
   const month = current.getMonth();

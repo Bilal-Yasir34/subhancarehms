@@ -276,11 +276,11 @@ export const activities: ActivityItem[] = [
 
 // ----- Notifications -----
 export const notifications: Notification[] = [
-  { id: 'n1', title: 'Emergency case incoming', message: 'Ambulance ETA 8 minutes — Trauma unit standby', time: dateStr(0), read: false, type: 'error' },
-  { id: 'n2', title: 'Lab results delayed', message: 'MRI queue is backed up by 40 minutes', time: dateStr(0), read: false, type: 'warning' },
-  { id: 'n3', title: 'New patient registered', message: 'Olivia Martinez added to General Medicine', time: dateStr(0), read: false, type: 'success' },
-  { id: 'n4', title: 'Inventory restock needed', message: 'Surgical gloves below threshold (120 units)', time: dateStr(1), read: true, type: 'warning' },
-  { id: 'n5', title: 'Weekly report ready', message: 'Patient throughput report for Jul 8–14 is available', time: dateStr(1), read: true, type: 'info' },
+  { id: 'n1', title: 'Emergency case incoming', message: 'Ambulance ETA 8 minutes — Trauma unit standby', time: dateStr(0), read: false, type: 'error', targetType: 'broadcast' },
+  { id: 'n2', title: 'Lab results delayed', message: 'MRI queue is backed up by 40 minutes', time: dateStr(0), read: false, type: 'warning', targetType: 'broadcast' },
+  { id: 'n3', title: 'New patient registered', message: 'Olivia Martinez added to General Medicine', time: dateStr(0), read: false, type: 'success', targetType: 'broadcast' },
+  { id: 'n4', title: 'Inventory restock needed', message: 'Surgical gloves below threshold (120 units)', time: dateStr(1), read: true, type: 'warning', targetType: 'broadcast' },
+  { id: 'n5', title: 'Weekly report ready', message: 'Patient throughput report for Jul 8–14 is available', time: dateStr(1), read: true, type: 'info', targetType: 'broadcast' },
 ];
 
 // ----- Dashboard chart data -----

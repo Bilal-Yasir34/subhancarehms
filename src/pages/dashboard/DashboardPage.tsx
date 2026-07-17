@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -11,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardBody, Avatar, StatusBadge, Button, Bad
 import { CalendarWidget } from '../../components/CalendarWidget';
 import { RevenueChart, PatientFlowChart, DepartmentPie, AppointmentTypeChart } from './Charts';
 import { api } from '../../services/api';
+import { supabase } from '../../services/supabase';
 import { useAsync } from '../../hooks';
 import { formatDate, timeAgo, cn } from '../../utils';
 import { SkeletonCard } from '../../components/ui';
@@ -39,15 +41,87 @@ export function DashboardPage() {
 
   const { data: activitiesData } = useAsync(() => api.getActivities(), []);
 
-  if (user?.role === 'patient') {
-    return <PatientDashboardPage />;
-  }
-
-  // Load doctor's appointments (if logged-in user is a doctor)
+  // Doctor hooks — always called, conditionally fetch
   const { data: docAppointmentsData, loading: docLoading } = useAsync(
     () => user?.role === 'doctor' && user?.doctorId ? api.getAppointments({ pageSize: 500, doctorId: user.doctorId }) : Promise.resolve({ items: [], total: 0 }),
     [user?.doctorId, user?.role]
   );
+
+  // General staff hooks — always called, conditionally fetch
+  const { data: staffInventory } = useAsync(
+    () => user?.role === 'general_staff' ? api.getInventoryItems({ pageSize: 200 }) : Promise.resolve({ items: [], total: 0 }),
+    [user?.role]
+  );
+  const { data: staffPharmacy } = useAsync(
+    () => user?.role === 'general_staff' ? api.getPharmacyItems({ pageSize: 200 }) : Promise.resolve({ items: [], total: 0 }),
+    [user?.role]
+  );
+  const { data: staffBlood } = useAsync(
+    () => user?.role === 'general_staff' ? api.getBloodBankStock() : Promise.resolve([]),
+    [user?.role]
+  );
+
+  // Admin hooks — always called, conditionally fetch
+  const [statsData, setStatsData] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  const loadStats = useCallback(async () => {
+    if (user?.role !== 'admin') return;
+    setStatsLoading(true);
+    try {
+      const res = await api.getDashboardStats();
+      setStatsData(res);
+    } catch {
+      setStatsData(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [user?.role]);
+
+  useEffect(() => {
+    loadStats();
+
+    if (user?.role === 'admin') {
+      const channel = supabase
+        .channel('admin-dashboard-stats-changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'doctors' },
+          () => {
+            loadStats();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [loadStats, user?.role]);
+  const { data: revenueData, loading: revLoading } = useAsync(
+    () => user?.role === 'admin' ? api.getRevenueData() : Promise.resolve(null),
+    [user?.role]
+  );
+  const { data: flowData, loading: flowLoading } = useAsync(
+    () => user?.role === 'admin' ? api.getPatientFlowData() : Promise.resolve(null),
+    [user?.role]
+  );
+  const { data: deptData, loading: deptLoading } = useAsync(
+    () => user?.role === 'admin' ? api.getDepartmentDistribution() : Promise.resolve(null),
+    [user?.role]
+  );
+  const { data: appointmentsData } = useAsync(
+    () => user?.role === 'admin' ? api.getAppointments({ pageSize: 100 }) : Promise.resolve({ items: [], total: 0 }),
+    [user?.role]
+  );
+  const { data: apptTypeData } = useAsync(
+    () => user?.role === 'admin' ? api.getAppointmentTypeData() : Promise.resolve(null),
+    [user?.role]
+  );
+  if (user?.role === 'patient') {
+    return <PatientDashboardPage />;
+  }
+
   if (user?.role === 'doctor') {
     const docAppts = docAppointmentsData?.items ?? [];
     
@@ -212,9 +286,13 @@ export function DashboardPage() {
                         <span className="text-sm font-bold leading-none">{appt.time}</span>
                         <span className="text-[10px] mt-0.5">{appt.durationMin}m</span>
                       </div>
-                      <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" />
+                      <Link to={`/patients/${appt.patientId}`}>
+                        <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" className="hover:ring-2 hover:ring-primary-500 transition-all cursor-pointer" />
+                      </Link>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink-800 dark:text-ink-200 truncate">{appt.patientName}</p>
+                        <Link to={`/patients/${appt.patientId}`} className="text-sm font-medium text-ink-800 dark:text-ink-200 hover:text-primary-600 dark:hover:text-primary-400 transition-colors truncate block">
+                          {appt.patientName}
+                        </Link>
                         <p className="text-xs text-ink-500 dark:text-ink-400 truncate">{appt.type} · Room {appt.room}</p>
                       </div>
                       <StatusBadge status={appt.status} pulse={appt.status === 'in-progress'} />
@@ -233,38 +311,44 @@ export function DashboardPage() {
             <CardHeader><CardTitle>Activity Timeline</CardTitle></CardHeader>
             <CardBody className="p-0">
               <div className="px-5 py-4">
-                <div className="relative">
-                  <div className="absolute left-[15px] top-2 bottom-2 w-px bg-ink-200 dark:bg-ink-800" />
-                  <div className="space-y-5">
-                    {activitiesData?.map((act, i) => {
-                      const cfg = activityIcons[act.type] ?? activityIcons.appointment;
-                      return (
-                        <motion.div
-                          key={act.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.06 }}
-                          className="relative flex gap-4"
-                        >
-                          <div className={cn('relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-4 ring-white dark:ring-ink-900', cfg.bg)}>
-                            <cfg.icon className={cn('h-4 w-4', cfg.color)} />
-                          </div>
-                          <div className="flex-1 min-w-0 pt-0.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-medium text-ink-800 dark:text-ink-200">{act.title}</p>
-                              <span className="text-xs text-ink-400 shrink-0">{timeAgo(act.time)}</span>
-                            </div>
-                            <p className="text-sm text-ink-500 dark:text-ink-400 mt-0.5">{act.description}</p>
-                            <div className="flex items-center gap-1.5 mt-1.5">
-                              <Avatar src={act.avatar} name={act.user} size="xs" />
-                              <span className="text-xs text-ink-400">{act.user}</span>
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
+                {!activitiesData || activitiesData.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-ink-400">
+                    No system activities logged yet.
                   </div>
-                </div>
+                ) : (
+                  <div className="relative">
+                    <div className="absolute left-[15px] top-2 bottom-2 w-px bg-ink-200 dark:bg-ink-800" />
+                    <div className="space-y-5">
+                      {activitiesData.map((act, i) => {
+                        const cfg = activityIcons[act.type] ?? activityIcons.appointment;
+                        return (
+                          <motion.div
+                            key={act.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.06 }}
+                            className="relative flex gap-4"
+                          >
+                            <div className={cn('relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-4 ring-white dark:ring-ink-900', cfg.bg)}>
+                              <cfg.icon className={cn('h-4 w-4', cfg.color)} />
+                            </div>
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-medium text-ink-800 dark:text-ink-200">{act.title}</p>
+                                <span className="text-xs text-ink-400 shrink-0">{timeAgo(act.time)}</span>
+                              </div>
+                              <p className="text-sm text-ink-500 dark:text-ink-400 mt-0.5">{act.description}</p>
+                              <div className="flex items-center gap-1.5 mt-1.5">
+                                <Avatar src={act.avatar} name={act.user} size="xs" />
+                                <span className="text-xs text-ink-400">{act.user}</span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardBody>
           </Card>
@@ -275,20 +359,6 @@ export function DashboardPage() {
       </div>
     );
   }
-
-  // Load general staff dashboard data
-  const { data: staffInventory } = useAsync(
-    () => user?.role === 'general_staff' ? api.getInventoryItems({ pageSize: 200 }) : Promise.resolve({ items: [], total: 0 }),
-    [user?.role]
-  );
-  const { data: staffPharmacy } = useAsync(
-    () => user?.role === 'general_staff' ? api.getPharmacyItems({ pageSize: 200 }) : Promise.resolve({ items: [], total: 0 }),
-    [user?.role]
-  );
-  const { data: staffBlood } = useAsync(
-    () => user?.role === 'general_staff' ? api.getBloodBankStock() : Promise.resolve([]),
-    [user?.role]
-  );
 
   if (user?.role === 'general_staff') {
     const invItems = staffInventory?.items ?? [];
@@ -427,7 +497,7 @@ export function DashboardPage() {
               <Link to="/inventory" className="flex items-center justify-between p-4 rounded-xl border border-ink-100 hover:border-primary-500/35 hover:bg-primary-500/5 dark:border-ink-800 dark:hover:border-primary-500/20 transition-all group">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                    <Boxes className="h-4.5 w-4.5" />
+                    <Boxes className="h-[18px] w-[18px]" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-ink-800 dark:text-ink-200">General Inventory</p>
@@ -440,7 +510,7 @@ export function DashboardPage() {
               <Link to="/pharmacy" className="flex items-center justify-between p-4 rounded-xl border border-ink-100 hover:border-accent-500/35 hover:bg-accent-500/5 dark:border-ink-800 dark:hover:border-accent-500/20 transition-all group">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-accent-50 dark:bg-accent-500/10 text-accent-600 dark:text-accent-400">
-                    <ActivityIcon className="h-4.5 w-4.5" />
+                    <ActivityIcon className="h-[18px] w-[18px]" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-ink-800 dark:text-ink-200">Pharmacy</p>
@@ -453,7 +523,7 @@ export function DashboardPage() {
               <Link to="/blood-bank" className="flex items-center justify-between p-4 rounded-xl border border-ink-100 hover:border-warning-500/35 hover:bg-warning-500/5 dark:border-ink-800 dark:hover:border-warning-500/20 transition-all group">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-warning-50 dark:bg-warning-500/10 text-warning-600 dark:text-warning-400">
-                    <Droplet className="h-4.5 w-4.5" />
+                    <Droplet className="h-[18px] w-[18px]" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-ink-800 dark:text-ink-200">Blood Bank</p>
@@ -468,13 +538,6 @@ export function DashboardPage() {
       </div>
     );
   }
-
-  const { data: statsData, loading: statsLoading } = useAsync(() => api.getDashboardStats(), []);
-  const { data: revenueData, loading: revLoading } = useAsync(() => api.getRevenueData(), []);
-  const { data: flowData, loading: flowLoading } = useAsync(() => api.getPatientFlowData(), []);
-  const { data: deptData, loading: deptLoading } = useAsync(() => api.getDepartmentDistribution(), []);
-  const { data: appointmentsData } = useAsync(() => api.getAppointments({ pageSize: 100 }), []);
-  const { data: apptTypeData } = useAsync(() => api.getAppointmentTypeData(), []);
 
   const apptData = appointmentsData?.items ?? [];
   const todayAppts = apptData.filter((a) => new Date(a.date).toDateString() === new Date().toDateString()).slice(0, 5);
@@ -590,9 +653,13 @@ export function DashboardPage() {
                       <span className="text-sm font-bold leading-none">{appt.time}</span>
                       <span className="text-[10px] mt-0.5">{appt.durationMin}m</span>
                     </div>
-                    <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" />
+                    <Link to={`/patients/${appt.patientId}`}>
+                      <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" className="hover:ring-2 hover:ring-primary-500 transition-all cursor-pointer" />
+                    </Link>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-ink-800 dark:text-ink-200 truncate">{appt.patientName}</p>
+                      <Link to={`/patients/${appt.patientId}`} className="text-sm font-medium text-ink-800 dark:text-ink-200 hover:text-primary-600 dark:hover:text-primary-400 transition-colors truncate block">
+                        {appt.patientName}
+                      </Link>
                       <p className="text-xs text-ink-500 dark:text-ink-400 truncate">{appt.doctorName} · {appt.department}</p>
                     </div>
                     <StatusBadge status={appt.status} pulse={appt.status === 'in-progress'} />
@@ -621,38 +688,44 @@ export function DashboardPage() {
           <CardHeader><CardTitle>Activity Timeline</CardTitle></CardHeader>
           <CardBody className="p-0">
             <div className="px-5 py-4">
-              <div className="relative">
-                <div className="absolute left-[15px] top-2 bottom-2 w-px bg-ink-200 dark:bg-ink-800" />
-                <div className="space-y-5">
-                  {activitiesData?.map((act, i) => {
-                    const cfg = activityIcons[act.type] ?? activityIcons.appointment;
-                    return (
-                      <motion.div
-                        key={act.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.06 }}
-                        className="relative flex gap-4"
-                      >
-                        <div className={cn('relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-4 ring-white dark:ring-ink-900', cfg.bg)}>
-                          <cfg.icon className={cn('h-4 w-4', cfg.color)} />
-                        </div>
-                        <div className="flex-1 min-w-0 pt-0.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-ink-800 dark:text-ink-200">{act.title}</p>
-                            <span className="text-xs text-ink-400 shrink-0">{timeAgo(act.time)}</span>
-                          </div>
-                          <p className="text-sm text-ink-500 dark:text-ink-400 mt-0.5">{act.description}</p>
-                          <div className="flex items-center gap-1.5 mt-1.5">
-                            <Avatar src={act.avatar} name={act.user} size="xs" />
-                            <span className="text-xs text-ink-400">{act.user}</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
+              {!activitiesData || activitiesData.length === 0 ? (
+                <div className="text-center py-8 text-sm text-ink-400">
+                  No system activities logged yet.
                 </div>
-              </div>
+              ) : (
+                <div className="relative">
+                  <div className="absolute left-[15px] top-2 bottom-2 w-px bg-ink-200 dark:bg-ink-800" />
+                  <div className="space-y-5">
+                    {activitiesData.map((act, i) => {
+                      const cfg = activityIcons[act.type] ?? activityIcons.appointment;
+                      return (
+                        <motion.div
+                          key={act.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.06 }}
+                          className="relative flex gap-4"
+                        >
+                          <div className={cn('relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-4 ring-white dark:ring-ink-900', cfg.bg)}>
+                            <cfg.icon className={cn('h-4 w-4', cfg.color)} />
+                          </div>
+                          <div className="flex-1 min-w-0 pt-0.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-ink-800 dark:text-ink-200">{act.title}</p>
+                              <span className="text-xs text-ink-400 shrink-0">{timeAgo(act.time)}</span>
+                            </div>
+                            <p className="text-sm text-ink-500 dark:text-ink-400 mt-0.5">{act.description}</p>
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <Avatar src={act.avatar} name={act.user} size="xs" />
+                              <span className="text-xs text-ink-400">{act.user}</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </CardBody>
         </Card>

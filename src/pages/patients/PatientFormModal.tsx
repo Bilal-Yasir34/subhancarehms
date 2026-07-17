@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { Modal, Button, Input, Select } from '../../components/ui';
@@ -44,6 +45,34 @@ export function PatientFormModal({ open, onClose, onSuccess, patient }: PatientF
       emergencyContactName: '', emergencyContactRelation: '', emergencyContactPhone: '',
     },
   });
+
+  const [departmentsList, setDepartmentsList] = useState<string[]>(DEPARTMENTS);
+
+  useEffect(() => {
+    api.getDepartments().then((list) => {
+      if (list.length > 0) {
+        setDepartmentsList(list.map(d => d.name));
+      }
+    }).catch(err => console.error('Failed to load departments', err));
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      reset(patient ? {
+        firstName: patient.firstName, lastName: patient.lastName, email: patient.email,
+        phone: patient.phone, dateOfBirth: patient.dateOfBirth.split('T')[0],
+        gender: patient.gender, bloodType: patient.bloodType, address: patient.address,
+        city: patient.city, status: patient.status, department: patient.department,
+        emergencyContactName: patient.emergencyContact?.name ?? '',
+        emergencyContactRelation: patient.emergencyContact?.relation ?? '',
+        emergencyContactPhone: patient.emergencyContact?.phone ?? '',
+      } : {
+        firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '',
+        gender: 'male', bloodType: 'O+', address: '', city: '', status: 'outpatient', department: 'General Medicine',
+        emergencyContactName: '', emergencyContactRelation: '', emergencyContactPhone: '',
+      });
+    }
+  }, [open, patient, reset]);
 
   const onSubmit = async (formData: FormData) => {
     const { emergencyContactName, emergencyContactRelation, emergencyContactPhone, ...rest } = formData;
@@ -102,7 +131,7 @@ export function PatientFormModal({ open, onClose, onSuccess, patient }: PatientF
         <Input label="Address" placeholder="123 Main St" error={errors.address?.message} {...register('address', { required: 'Required' })} />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Input label="City" placeholder="New York" error={errors.city?.message} {...register('city', { required: 'Required' })} />
-          <Select label="Department" options={DEPARTMENTS.map((d) => ({ value: d, label: d }))} {...register('department')} />
+          <Select label="Department" options={departmentsList.map((d) => ({ value: d, label: d }))} {...register('department')} />
           <Select label="Status" options={[
             { value: 'outpatient', label: 'Outpatient' },
             { value: 'admitted', label: 'Admitted' },

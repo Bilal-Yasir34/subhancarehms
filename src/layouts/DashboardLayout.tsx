@@ -6,9 +6,9 @@ import { Header } from '../components/Header';
 import { useMediaQuery } from '../hooks';
 
 const pageVariants = {
-  initial: { opacity: 0, y: 14, filter: 'blur(2px)' },
-  animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
-  exit:    { opacity: 0, y: -8, filter: 'blur(1px)' },
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0 },
+  exit:    { opacity: 0, y: -4 },
 };
 
 export function DashboardLayout() {
@@ -40,7 +40,7 @@ export function DashboardLayout() {
               initial="initial"
               animate="animate"
               exit="exit"
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
             >
               <Outlet />
             </motion.div>

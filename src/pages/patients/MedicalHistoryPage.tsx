@@ -42,7 +42,7 @@ export function MedicalHistoryPage() {
       await api.deleteMedicalRecord(id);
       toast.success('Record deleted successfully');
       reload();
-    } catch (err) {
+    } catch {
       toast.error('Failed to delete record');
     }
   };

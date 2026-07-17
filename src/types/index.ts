@@ -187,4 +187,5 @@ export interface StaffProfile {
   department?: string;
   active: boolean;
   createdAt: string;
+  tempCode?: string;
 }

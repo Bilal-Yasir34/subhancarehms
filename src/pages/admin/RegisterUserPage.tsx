@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { UserPlus, Mail, Lock, Phone, HeartPulse, Stethoscope, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -12,6 +12,19 @@ export function RegisterUserPage() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('General Medicine');
+  const [departmentsList, setDepartmentsList] = useState<string[]>(DEPARTMENTS);
+
+  useEffect(() => {
+    api.getDepartments().then((list) => {
+      if (list.length > 0) {
+        const names = list.map(d => d.name);
+        setDepartmentsList(names);
+        if (!names.includes(department)) {
+          setDepartment(names[0]);
+        }
+      }
+    }).catch(err => console.warn('Failed to load departments:', err));
+  }, []);
   
   // Doctor fields
   const [specialty, setSpecialty] = useState('General Physician');
@@ -186,7 +199,7 @@ export function RegisterUserPage() {
                 label="Assigned Department"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                options={DEPARTMENTS.map(d => ({ value: d, label: d }))}
+                options={departmentsList.map(d => ({ value: d, label: d }))}
               />
             </div>
           </CardBody>

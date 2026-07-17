@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, UserCog, Edit2, Power, Mail, Phone, Trash2 } from 'lucide-react';
+import { Plus, Search, UserCog, Edit2, Power, Mail, Phone, Trash2, Key, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardBody, Button, Input, Select, Badge, Modal, Avatar, SkeletonCard, EmptyState, ConfirmDialog } from '../../components/ui';
 import { api } from '../../services/api';
 import { useAsync } from '../../hooks';
 import { ROLES, DEPARTMENTS } from '../../constants';
 import { formatDate } from '../../utils';
-import type { UserRole, StaffProfile } from '../../types';
+import type { UserRole, StaffProfile, Doctor } from '../../types';
 
 export function StaffPage() {
   const [search, setSearch] = useState('');
@@ -17,6 +17,7 @@ export function StaffPage() {
   const [toggleTarget, setToggleTarget] = useState<StaffProfile | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StaffProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [viewTarget, setViewTarget] = useState<StaffProfile | null>(null);
 
   const { data: staff, loading, reload } = useAsync(() => api.getStaffProfiles(), []);
 
@@ -95,7 +96,16 @@ export function StaffPage() {
                         <div className="flex items-center gap-3">
                           <Avatar src={member.avatar} name={member.fullName} size="lg" ring />
                           <div>
-                            <p className="font-semibold text-ink-900 dark:text-ink-100">{member.fullName}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-ink-900 dark:text-ink-100">{member.fullName}</p>
+                              <button
+                                onClick={() => setViewTarget(member)}
+                                className="p-1 rounded-lg text-ink-400 hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-500/15 transition-colors"
+                                aria-label="View Details"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                            </div>
                             <p className="text-xs text-ink-400 capitalize">{member.role}</p>
                           </div>
                         </div>
@@ -116,7 +126,7 @@ export function StaffPage() {
                         )}
                         <p className="text-ink-400 text-xs">Joined {formatDate(member.createdAt)}</p>
                       </div>
-                      <div className="mt-4 flex gap-2 pt-3 border-t border-ink-100 dark:border-ink-800">
+                      <div className="mt-4 flex items-center justify-between pt-3 border-t border-ink-100 dark:border-ink-800">
                         <Button
                           variant="outline"
                           size="sm"
@@ -125,24 +135,26 @@ export function StaffPage() {
                         >
                           Edit
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          leftIcon={<Power className="h-3.5 w-3.5" />}
-                          onClick={() => setToggleTarget(member)}
-                          className={member.active ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10' : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'}
-                        >
-                          {member.active ? 'Deactivate' : 'Activate'}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          leftIcon={<Trash2 className="h-3.5 w-3.5" />}
-                          onClick={() => setDeleteTarget(member)}
-                          className="text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 ml-auto"
-                        >
-                          Delete
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={<Power className="h-3.5 w-3.5" />}
+                            onClick={() => setToggleTarget(member)}
+                            className={member.active ? 'text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10' : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'}
+                          >
+                            {member.active ? 'Deactivate' : 'Activate'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                            onClick={() => setDeleteTarget(member)}
+                            className="text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </CardBody>
                   </Card>
@@ -209,6 +221,57 @@ export function StaffPage() {
         onConfirm={handleDelete}
         onClose={() => setDeleteTarget(null)}
       />
+
+      {viewTarget && (
+        <Modal
+          open={!!viewTarget}
+          onClose={() => setViewTarget(null)}
+          title="Staff Details"
+          size="md"
+          footer={<Button variant="outline" onClick={() => setViewTarget(null)}>Close</Button>}
+        >
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 pb-4 border-b border-ink-100 dark:border-ink-800">
+              <Avatar src={viewTarget.avatar} name={viewTarget.fullName} size="xl" ring />
+              <div>
+                <h3 className="text-lg font-bold text-ink-900 dark:text-ink-100">{viewTarget.fullName}</h3>
+                <p className="text-sm text-ink-500 capitalize">{viewTarget.role?.replace('_', ' ')}</p>
+                <Badge variant={viewTarget.active ? 'success' : 'danger'} className="mt-2">
+                  {viewTarget.active ? 'Active' : 'Inactive'}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div className="p-3 bg-ink-50 dark:bg-ink-950/40 rounded-xl space-y-1">
+                <p className="text-xs font-medium text-ink-400">Email Address</p>
+                <p className="font-semibold text-ink-800 dark:text-ink-200 break-all">{viewTarget.email}</p>
+              </div>
+              <div className="p-3 bg-ink-50 dark:bg-ink-950/40 rounded-xl space-y-1">
+                <p className="text-xs font-medium text-ink-400">Phone Number</p>
+                <p className="font-semibold text-ink-800 dark:text-ink-200">{viewTarget.phone || 'N/A'}</p>
+              </div>
+              <div className="p-3 bg-ink-50 dark:bg-ink-950/40 rounded-xl space-y-1">
+                <p className="text-xs font-medium text-ink-400">Department</p>
+                <p className="font-semibold text-ink-800 dark:text-ink-200">{viewTarget.department || 'N/A'}</p>
+              </div>
+              <div className="p-3 bg-ink-50 dark:bg-ink-950/40 rounded-xl space-y-1">
+                <p className="text-xs font-medium text-ink-400">Date Joined</p>
+                <p className="font-semibold text-ink-800 dark:text-ink-200">{formatDate(viewTarget.createdAt)}</p>
+              </div>
+              <div className="p-3 bg-primary-50/50 dark:bg-primary-950/20 border border-primary-100 dark:border-primary-900/30 rounded-xl col-span-1 sm:col-span-2 flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-primary-600 dark:text-primary-400">Temporary Access Code</p>
+                  <p className="text-base font-mono font-bold tracking-widest text-primary-700 dark:text-primary-300">
+                    {viewTarget.tempCode || 'Not Assigned (Run DB SQL migration)'}
+                  </p>
+                </div>
+                <Key className="h-6 w-6 text-primary-500 shrink-0" />
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -241,15 +304,27 @@ function StaffFormModal({ staff, saving, onSave, onClose }: {
     createPortal: true,
   });
 
-  const [doctors, setDoctors] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [departmentsList, setDepartmentsList] = useState<string[]>(DEPARTMENTS);
 
   useEffect(() => {
     api.getDoctors({ pageSize: 100 })
       .then((res) => setDoctors(res.items))
       .catch((err) => console.error('Failed to load doctors', err));
+
+    api.getDepartments().then((list) => {
+      if (list.length > 0) {
+        const names = list.map(d => d.name);
+        setDepartmentsList(names);
+        if (!names.includes(form.department)) {
+          setForm(f => ({ ...f, department: names[0] }));
+        }
+      }
+    }).catch(err => console.error('Failed to load departments', err));
   }, []);
 
-  const update = (key: keyof StaffFormData, value: any) => setForm((f) => ({ ...f, [key]: value }));
+  const update = (key: keyof StaffFormData, value: StaffFormData[keyof StaffFormData]) =>
+    setForm((f) => ({ ...f, [key]: value }));
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,7 +371,7 @@ function StaffFormModal({ staff, saving, onSave, onClose }: {
             label="Department"
             value={form.department}
             onChange={(e) => update('department', e.target.value)}
-            options={DEPARTMENTS.map((d) => ({ value: d, label: d }))}
+            options={departmentsList.map((d) => ({ value: d, label: d }))}
           />
         </div>
 

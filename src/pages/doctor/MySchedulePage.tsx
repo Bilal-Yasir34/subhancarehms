@@ -1,10 +1,12 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { CalendarClock, Clock, MapPin } from 'lucide-react';
 import { Card, CardBody, CardHeader, CardTitle, Avatar, StatusBadge, SkeletonCard, EmptyState } from '../../components/ui';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useAsync } from '../../hooks';
 import { formatDate } from '../../utils';
+import type { AppointmentStatus, Appointment } from '../../types';
 
 export function MySchedulePage() {
   const { user } = useAuth();
@@ -38,7 +40,7 @@ export function MySchedulePage() {
 function ScheduleSection({ title, icon, appointments, loading, emptyMessage }: {
   title: string;
   icon: React.ReactNode;
-  appointments: { id: string; patientName: string; patientAvatar: string; date: string; time: string; status: string; type: string; reason: string; room: string }[];
+  appointments: Appointment[];
   loading: boolean;
   emptyMessage: string;
 }) {
@@ -70,9 +72,13 @@ function ScheduleSection({ title, icon, appointments, loading, emptyMessage }: {
                 transition={{ delay: i * 0.03 }}
                 className="flex items-center gap-4 rounded-xl border border-ink-100 dark:border-ink-800 p-3 hover:bg-ink-50/50 dark:hover:bg-ink-800/30 transition-colors"
               >
-                <Avatar src={appt.patientAvatar} name={appt.patientName} size="md" />
+                <Link to={`/patients/${appt.patientId}`}>
+                  <Avatar src={appt.patientAvatar} name={appt.patientName} size="md" className="hover:ring-2 hover:ring-primary-500 transition-all cursor-pointer" />
+                </Link>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-ink-900 dark:text-ink-100 truncate">{appt.patientName}</p>
+                  <Link to={`/patients/${appt.patientId}`} className="font-medium text-ink-900 dark:text-ink-100 hover:text-primary-600 dark:hover:text-primary-400 transition-colors truncate block">
+                    {appt.patientName}
+                  </Link>
                   <p className="text-xs text-ink-400 truncate">{appt.reason} · {appt.type}</p>
                 </div>
                 <div className="text-right shrink-0">
@@ -80,7 +86,7 @@ function ScheduleSection({ title, icon, appointments, loading, emptyMessage }: {
                   <p className="text-xs text-ink-400">{formatDate(appt.date)}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  <StatusBadge status={appt.status as any} />
+                  <StatusBadge status={appt.status as AppointmentStatus} />
                   <p className="text-xs text-ink-400 flex items-center gap-1">
                     <MapPin className="h-3 w-3" /> {appt.room}
                   </p>

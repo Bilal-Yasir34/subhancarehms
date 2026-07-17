@@ -1,4 +1,5 @@
-import { getInitials, cn } from '../../utils';
+import { User } from 'lucide-react';
+import { cn } from '../../utils';
 
 interface AvatarProps {
   src?: string;
@@ -10,11 +11,19 @@ interface AvatarProps {
 }
 
 const sizes = {
-  xs: 'h-6 w-6 text-[10px]',
-  sm: 'h-8 w-8 text-xs',
-  md: 'h-10 w-10 text-sm',
-  lg: 'h-12 w-12 text-base',
-  xl: 'h-16 w-16 text-lg',
+  xs: 'h-6 w-6',
+  sm: 'h-8 w-8',
+  md: 'h-10 w-10',
+  lg: 'h-12 w-12',
+  xl: 'h-16 w-16',
+};
+
+const iconSizes = {
+  xs: 'h-3.5 w-3.5',
+  sm: 'h-4 w-4',
+  md: 'h-5 w-5',
+  lg: 'h-6 w-6',
+  xl: 'h-8 w-8',
 };
 
 const statusColors: Record<string, string> = {
@@ -26,22 +35,17 @@ const statusColors: Record<string, string> = {
   emergency: 'bg-danger-500',
 };
 
-export function Avatar({ src, name, size = 'md', ring, status, className }: AvatarProps) {
-  const initials = getInitials(name);
+export function Avatar({ src: _src, name, size = 'md', ring, status, className }: AvatarProps) {
   return (
-    <div className={cn('relative inline-flex shrink-0 rounded-full', className)}>
+    <div className={cn('relative inline-flex shrink-0 rounded-full', className)} title={name}>
       <div
         className={cn(
-          'rounded-full overflow-hidden flex items-center justify-center font-medium bg-gradient-to-br from-primary-100 to-accent-100 text-primary-700 dark:from-ink-700 dark:to-ink-800 dark:text-ink-200',
+          'rounded-full overflow-hidden flex items-center justify-center font-medium bg-ink-100 text-ink-600 dark:bg-ink-800 dark:text-ink-300',
           sizes[size],
           ring && 'ring-2 ring-white dark:ring-ink-900 shadow-sm',
         )}
       >
-        {src ? (
-          <img src={src} alt={name} className="h-full w-full object-cover" loading="lazy" />
-        ) : (
-          <span>{initials}</span>
-        )}
+        <User className={iconSizes[size]} />
       </div>
       {status && (
         <span

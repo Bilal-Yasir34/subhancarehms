@@ -8,6 +8,7 @@ import type {
 
 // ---- DB row → domain object mappers ----
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDoctor(row: any): Doctor {
   return {
     id: row.id,
@@ -29,6 +30,7 @@ function mapDoctor(row: any): Doctor {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapPatient(row: any, records?: MedicalRecord[]): Patient {
   return {
     id: row.id,
@@ -56,6 +58,7 @@ function mapPatient(row: any, records?: MedicalRecord[]): Patient {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapAppointment(row: any): Appointment {
   return {
     id: row.id,
@@ -75,9 +78,13 @@ function mapAppointment(row: any): Appointment {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapInvoice(row: any): Invoice {
-  const items = (row.items ?? [])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const items = (row.items as any[] ?? [])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((it: any) => it !== null && it !== undefined)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((it: any) => ({
       id: it.id,
       description: it.description,
@@ -195,6 +202,7 @@ function invoiceToRow(data: Partial<Invoice>): Record<string, unknown> {
   return row;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapInventoryItem(row: any): InventoryItem {
   return {
     id: row.id,
@@ -227,6 +235,7 @@ function inventoryItemToRow(data: Partial<InventoryItem>): Record<string, unknow
   return row;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapBloodBankStock(row: any): BloodBankStock {
   return {
     id: row.id,
@@ -238,6 +247,7 @@ function mapBloodBankStock(row: any): BloodBankStock {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapStaffProfile(row: any): StaffProfile {
   return {
     id: row.id,
@@ -251,6 +261,7 @@ function mapStaffProfile(row: any): StaffProfile {
     department: row.department,
     active: row.active,
     createdAt: row.created_at,
+    tempCode: row.temp_code,
   };
 }
 
@@ -295,17 +306,72 @@ export const api = {
     };
     const { data: result, error } = await supabase.from('patients').insert(row).select().single();
     if (error) throw error;
+
+    try {
+      await api.logActivity({
+        type: 'admission',
+        title: 'New patient registered',
+        description: `${result.first_name} ${result.last_name} registered under ${mrn}`,
+      });
+    } catch (e) {
+      console.warn('Failed to log patient registration activity:', e);
+    }
+
     return mapPatient(result);
   },
 
   async updatePatient(id: string, data: Partial<Patient>): Promise<void> {
+    let oldStatus: string | null = null;
+    let patientName = '';
+    if (data.status !== undefined) {
+      const { data: p } = await supabase.from('patients').select('status, first_name, last_name').eq('id', id).maybeSingle();
+      if (p) {
+        oldStatus = p.status;
+        patientName = `${p.first_name} ${p.last_name}`;
+      }
+    }
+
     const { error } = await supabase.from('patients').update(patientToRow(data)).eq('id', id);
     if (error) throw error;
+
+    if (data.status !== undefined && oldStatus !== data.status && patientName) {
+      try {
+        let type = 'admission';
+        let title = 'Patient status updated';
+        let description = `${patientName} status updated to ${data.status}`;
+        if (data.status === 'admitted') {
+          type = 'admission';
+          title = 'Patient admitted';
+          description = `${patientName} admitted to hospital`;
+        } else if (data.status === 'discharged') {
+          type = 'discharge';
+          title = 'Patient discharged';
+          description = `${patientName} discharged from hospital`;
+        }
+        await api.logActivity({ type, title, description });
+      } catch (e) {
+        console.warn('Failed to log patient status change activity:', e);
+      }
+    }
   },
 
   async deletePatient(id: string): Promise<void> {
+    // 1. Fetch any linked staff profile first
+    const { data: profile } = await supabase
+      .from('staff_profiles')
+      .select('id')
+      .eq('patient_id', id)
+      .maybeSingle();
+
+    // 2. Delete the patient record
     const { error } = await supabase.from('patients').delete().eq('id', id);
     if (error) throw error;
+
+    // 3. Clean up targeted notifications and delete the staff profile
+    if (profile?.id) {
+      await supabase.from('notifications').delete().eq('target_user_id', profile.id);
+      await supabase.from('staff_profiles').delete().eq('id', profile.id);
+    }
   },
 
   async uploadReportPdf(file: File): Promise<string> {
@@ -381,8 +447,22 @@ export const api = {
   },
 
   async deleteDoctor(id: string): Promise<void> {
+    // 1. Fetch any linked staff profile first
+    const { data: profile } = await supabase
+      .from('staff_profiles')
+      .select('id')
+      .eq('doctor_id', id)
+      .maybeSingle();
+
+    // 2. Delete the doctor record
     const { error } = await supabase.from('doctors').delete().eq('id', id);
     if (error) throw error;
+
+    // 3. Clean up targeted notifications and delete the staff profile
+    if (profile?.id) {
+      await supabase.from('notifications').delete().eq('target_user_id', profile.id);
+      await supabase.from('staff_profiles').delete().eq('id', profile.id);
+    }
   },
 
   // ----- Appointments -----
@@ -409,12 +489,125 @@ export const api = {
     const row = appointmentToRow(data);
     const { data: result, error } = await supabase.from('appointments').insert(row).select().single();
     if (error) throw error;
+
+    // Format date for notification message
+    let formattedDate = data.date || '';
+    try {
+      if (data.date) {
+        formattedDate = new Date(data.date).toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      }
+    } catch {
+      // use raw date value as fallback
+    }
+
+    // 1. Send notification to the respective doctor
+    try {
+      if (data.doctorId) {
+        const { data: profile } = await supabase
+          .from('staff_profiles')
+          .select('id')
+          .eq('doctor_id', data.doctorId)
+          .maybeSingle();
+        if (profile?.id) {
+          await api.sendNotification({
+            title: 'New Appointment Scheduled',
+            message: `New appointment booked by ${data.patientName || 'Patient'} on ${formattedDate} at ${data.time || ''}.`,
+            type: 'info',
+            targetType: 'individual',
+            targetUserId: profile.id,
+          });
+        } else {
+          // Fallback: send as broadcast so admin/staff can see it
+          await api.sendNotification({
+            title: 'New Appointment Scheduled (Broadcast)',
+            message: `New appointment booked by ${data.patientName || 'Patient'} with Dr. ${data.doctorName || ''} on ${formattedDate} at ${data.time || ''}.`,
+            type: 'info',
+            targetType: 'broadcast',
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to send doctor appointment notification:', err);
+    }
+
+    // 2. Send notification to the respective patient
+    try {
+      if (data.patientId) {
+        const { data: patientProfile } = await supabase
+          .from('staff_profiles')
+          .select('id')
+          .eq('patient_id', data.patientId)
+          .maybeSingle();
+        if (patientProfile?.id) {
+          await api.sendNotification({
+            title: 'Appointment Confirmed',
+            message: `Your appointment with ${data.doctorName || 'Doctor'} has been scheduled for ${formattedDate} at ${data.time || ''}.`,
+            type: 'success',
+            targetType: 'individual',
+            targetUserId: patientProfile.id,
+          });
+        } else {
+          // Fallback: send as broadcast so admin/staff can see it
+          await api.sendNotification({
+            title: 'Appointment Confirmed (Broadcast)',
+            message: `Appointment scheduled for patient ${data.patientName || 'Patient'} with Dr. ${data.doctorName || ''} on ${formattedDate} at ${data.time || ''}.`,
+            type: 'success',
+            targetType: 'broadcast',
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to send patient appointment notification:', err);
+    }
+
+    try {
+      await api.logActivity({
+        type: 'appointment',
+        title: 'New appointment booked',
+        description: `${result.patient_name} scheduled with ${result.doctor_name} — ${result.department}`,
+      });
+    } catch (e) {
+      console.warn('Failed to log appointment activity:', e);
+    }
+
     return mapAppointment(result);
   },
 
   async updateAppointmentStatus(id: string, status: Appointment['status']): Promise<void> {
+    const { data: appt } = await supabase.from('appointments').select('patient_name, doctor_name, status, doctor_id').eq('id', id).maybeSingle();
     const { error } = await supabase.from('appointments').update({ status }).eq('id', id);
     if (error) throw error;
+
+    if (appt) {
+      if (appt.status !== 'completed' && status === 'completed' && appt.doctor_id) {
+        try {
+          const { data: doc } = await supabase.from('doctors').select('patients_treated').eq('id', appt.doctor_id).maybeSingle();
+          if (doc) {
+            const currentTreated = Number(doc.patients_treated ?? 0);
+            await supabase.from('doctors').update({ patients_treated: currentTreated + 1 }).eq('id', appt.doctor_id);
+          }
+        } catch (e) {
+          console.warn('Failed to increment doctor patients treated count:', e);
+        }
+      }
+
+      if (appt.status !== status) {
+        try {
+          await api.logActivity({
+            type: 'appointment',
+            title: 'Appointment status updated',
+            description: `Appointment of ${appt.patient_name} with ${appt.doctor_name} updated to ${status}`,
+          });
+        } catch (e) {
+          console.warn('Failed to log appointment update activity:', e);
+        }
+      }
+    }
   },
 
   async rescheduleAppointment(id: string, date: string, time: string): Promise<void> {
@@ -457,7 +650,7 @@ export const api = {
       id: it.id, description: it.description, category: it.category, quantity: it.quantity, unit_price: it.unitPrice,
     }));
     const subtotal = (data.items ?? []).reduce((s, it) => s + it.unitPrice * it.quantity, 0);
-    const tax = Math.round(subtotal * 0.08);
+    const tax = 0;
     const invNum = `INV-2026-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`;
     const row = {
       ...invoiceToRow(data),
@@ -465,25 +658,76 @@ export const api = {
       date: new Date().toISOString(),
       items,
       subtotal,
-      tax_rate: 8,
+      tax_rate: 0,
       tax,
-      total: subtotal + tax - (data.discount ?? 0),
+      total: subtotal - (data.discount ?? 0),
       amount_paid: 0,
       status: 'pending',
       due_date: new Date(Date.now() + 30 * 86400000).toISOString(),
     };
     const { data: result, error } = await supabase.from('invoices').insert(row).select().single();
     if (error) throw error;
+
+    // Send notification to the patient
+    try {
+      if (result.patient_id) {
+        const { data: profile } = await supabase
+          .from('staff_profiles')
+          .select('id')
+          .eq('patient_id', result.patient_id)
+          .maybeSingle();
+        if (profile?.id) {
+          await api.sendNotification({
+            title: 'New Bill Generated',
+            message: `A new invoice (${result.invoice_number}) for $${(result.total || 0).toFixed(2)} has been generated.`,
+            type: 'warning',
+            targetType: 'individual',
+            targetUserId: profile.id,
+          });
+        } else {
+          // Fallback: send as broadcast so admin/staff can see it
+          await api.sendNotification({
+            title: 'New Bill Generated (Broadcast)',
+            message: `A new invoice (${result.invoice_number}) of $${(result.total || 0).toFixed(2)} has been generated for patient ${result.patient_name || ''}.`,
+            type: 'warning',
+            targetType: 'broadcast',
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to send patient bill notification:', err);
+    }
+
+    try {
+      await api.logActivity({
+        type: 'payment',
+        title: 'New bill generated',
+        description: `Invoice ${result.invoice_number} generated for ${result.patient_name} — $${Number(result.total).toFixed(2)}`,
+      });
+    } catch (e) {
+      console.warn('Failed to log invoice activity:', e);
+    }
+
     return mapInvoice(result);
   },
 
   async markInvoicePaid(id: string, method: Invoice['paymentMethod']): Promise<void> {
-    const { data: inv } = await supabase.from('invoices').select('total').eq('id', id).maybeSingle();
+    const { data: inv } = await supabase.from('invoices').select('total, invoice_number, patient_name').eq('id', id).maybeSingle();
     if (!inv) throw new Error('Invoice not found');
     const { error } = await supabase.from('invoices')
       .update({ status: 'paid', amount_paid: inv.total, payment_method: method })
       .eq('id', id);
     if (error) throw error;
+
+    try {
+      await api.logActivity({
+        type: 'payment',
+        title: 'Invoice paid',
+        description: `Invoice ${inv.invoice_number} paid via ${method} — $${Number(inv.total).toFixed(2)}`,
+      });
+    } catch (e) {
+      console.warn('Failed to log invoice payment activity:', e);
+    }
   },
 
   async deleteInvoice(id: string): Promise<void> {
@@ -500,6 +744,40 @@ export const api = {
       doctorsCount: 0, beds: r.beds, occupied: r.occupied, color: r.color,
     }));
   },
+
+  async createDepartment(data: Partial<Department>): Promise<Department> {
+    const row = {
+      name: data.name,
+      icon: data.icon ?? 'Heart',
+      head_doctor_name: data.head ?? '',
+      beds: Number(data.beds ?? 0),
+      occupied: Number(data.occupied ?? 0),
+      color: data.color ?? '#2563eb',
+    };
+    const { data: result, error } = await supabase.from('departments').insert(row).select().single();
+    if (error) throw error;
+    return {
+      id: result.id, name: result.name, icon: result.icon, head: result.head_doctor_name,
+      doctorsCount: 0, beds: result.beds, occupied: result.occupied, color: result.color,
+    };
+  },
+
+  async updateDepartment(id: string, data: Partial<Department>): Promise<void> {
+    const row: Record<string, unknown> = {};
+    if (data.name !== undefined) row.name = data.name;
+    if (data.icon !== undefined) row.icon = data.icon;
+    if (data.head !== undefined) row.head_doctor_name = data.head;
+    if (data.beds !== undefined) row.beds = Number(data.beds);
+    if (data.occupied !== undefined) row.occupied = Number(data.occupied);
+    if (data.color !== undefined) row.color = data.color;
+    const { error } = await supabase.from('departments').update(row).eq('id', id);
+    if (error) throw error;
+  },
+
+  async deleteDepartment(id: string): Promise<void> {
+    const { error } = await supabase.from('departments').delete().eq('id', id);
+    if (error) throw error;
+  },
   async getActivities(): Promise<ActivityItem[]> {
     const { data, error } = await supabase.from('activities').select('*').order('time', { ascending: false }).limit(10);
     if (error) throw error;
@@ -507,6 +785,39 @@ export const api = {
       id: r.id, type: r.type, title: r.title, description: r.description,
       time: r.time, user: r.user_name, avatar: r.user_avatar,
     }));
+  },
+  async logActivity(payload: {
+    type: string;
+    title: string;
+    description: string;
+  }): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      let userName = 'System';
+      let userAvatar = '';
+      if (user) {
+        const { data: profile } = await supabase
+          .from('staff_profiles')
+          .select('full_name, avatar')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (profile) {
+          userName = profile.full_name;
+          userAvatar = profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(profile.full_name)}`;
+        }
+      }
+      const { error } = await supabase.from('activities').insert({
+        type: payload.type,
+        title: payload.title,
+        description: payload.description,
+        time: new Date().toISOString(),
+        user_name: userName,
+        user_avatar: userAvatar,
+      });
+      if (error) throw error;
+    } catch (err) {
+      console.warn('Failed to log activity:', err);
+    }
   },
   async getNotifications(): Promise<Notification[]> {
     const { data: { user } } = await supabase.auth.getUser();
@@ -597,7 +908,7 @@ export const api = {
     const today = new Date().toISOString().split('T')[0];
     const [patientsRes, doctorsRes, apptsRes, invoicesRes] = await Promise.all([
       supabase.from('patients').select('*', { count: 'exact', head: true }),
-      supabase.from('doctors').select('*', { count: 'exact', head: true }),
+      supabase.from('doctors').select('*', { count: 'exact', head: true }).eq('status', 'available'),
       supabase.from('appointments').select('*', { count: 'exact' }).gte('date', today + 'T00:00:00').lte('date', today + 'T23:59:59'),
       supabase.from('invoices').select('total, status, date'),
     ]);
@@ -620,16 +931,49 @@ export const api = {
   async getRevenueData() {
     const now = new Date();
     const months: { month: string; revenue: number; expenses: number }[] = [];
+
+    // 1. Fetch staff count to compute salary expenses
+    const { count: doctorCount } = await supabase.from('doctors').select('*', { count: 'exact', head: true });
+    const { data: staffData } = await supabase.from('staff_profiles').select('role');
+    const staffProfiles = staffData ?? [];
+    const adminCount = staffProfiles.filter(s => s.role === 'admin').length;
+    const generalStaffCount = staffProfiles.filter(s => s.role === 'general_staff').length;
+
+    // Operational salaries: Doctor Rs.150,000, General Staff Rs.60,000, Admin Rs.120,000
+    const monthlySalaries = (doctorCount ?? 0) * 150000 + generalStaffCount * 60000 + adminCount * 120000;
+
+    // 2. Fetch inventory items to compute monthly procurement cost
+    const { data: inventoryData } = await supabase.from('inventory_items').select('quantity, unit_price, created_at');
+    const inventoryItems = inventoryData ?? [];
+
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
-      const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString();
-      const { data } = await supabase.from('invoices').select('total').eq('status', 'paid').gte('date', monthStart).lte('date', monthEnd);
-      const revenue = (data ?? []).reduce((s, r) => s + Number(r.total), 0);
+      const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+      const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+
+      // Revenue: Paid invoices within this month
+      const { data: invoicesData } = await supabase
+        .from('invoices')
+        .select('total')
+        .eq('status', 'paid')
+        .gte('date', monthStart.toISOString())
+        .lte('date', monthEnd.toISOString());
+      const revenue = (invoicesData ?? []).reduce((s, r) => s + Number(r.total), 0);
+
+      // Expenses: Utilities/Rent (Rs.20,000) + Salaries + Inventory created in this month
+      const inventoryCost = inventoryItems
+        .filter(item => {
+          const itemDate = new Date(item.created_at);
+          return itemDate >= monthStart && itemDate <= monthEnd;
+        })
+        .reduce((sum, item) => sum + (Number(item.quantity) * Number(item.unit_price)), 0);
+
+      const expenses = 20000 + monthlySalaries + inventoryCost;
+
       months.push({
         month: d.toLocaleDateString('en-US', { month: 'short' }),
         revenue,
-        expenses: Math.round(revenue * 0.62),
+        expenses: Math.round(expenses),
       });
     }
     return months;
@@ -788,7 +1132,7 @@ export const api = {
     return (data ?? []).map(mapStaffProfile);
   },
 
-  async createStaffUser(email: string, password: string, fullName: string, role: UserRole, doctorId?: string, department?: string, patientId?: string): Promise<void> {
+  async createStaffUser(email: string, password: string, fullName: string, role: UserRole, doctorId?: string, department?: string, patientId?: string, phone?: string): Promise<void> {
     // Use a separate, isolated Supabase client so that signUp does NOT fire
     // onAuthStateChange on the main client. This keeps the admin's session and
     // AuthContext completely untouched during new-user registration.
@@ -811,7 +1155,7 @@ export const api = {
       // Update the new user's profile with the correct role using the main client
       // (which still holds the admin session and has the needed permissions)
       const { error: updateError } = await supabase.from('staff_profiles')
-        .update({ role, doctor_id: doctorId ?? null, patient_id: patientId ?? null, department: department ?? null })
+        .update({ role, doctor_id: doctorId ?? null, patient_id: patientId ?? null, department: department ?? null, phone: phone ?? null })
         .eq('id', data.user.id);
       if (updateError) throw updateError;
     }
@@ -823,21 +1167,34 @@ export const api = {
   },
 
   async deleteStaffProfile(id: string): Promise<void> {
+    // 1. Fetch profile to check linked records
+    const { data: profile } = await supabase
+      .from('staff_profiles')
+      .select('doctor_id, patient_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    // 2. Delete all notifications targeted to this user
+    await supabase.from('notifications').delete().eq('target_user_id', id);
+
+    // 3. Delete the staff profile row
     const { error } = await supabase.from('staff_profiles').delete().eq('id', id);
     if (error) throw error;
+
+    // 3. Clean up linked doctor (if any)
+    if (profile?.doctor_id) {
+      await supabase.from('doctors').delete().eq('id', profile.doctor_id);
+    }
+
+    // 4. Clean up linked patient (if any)
+    if (profile?.patient_id) {
+      await supabase.from('patients').delete().eq('id', profile.patient_id);
+    }
   },
 
   async createStaffWithoutPortal(fullName: string, role: UserRole, department?: string, phone?: string): Promise<void> {
-    const id = crypto.randomUUID();
-    const { error } = await supabase.from('staff_profiles').insert({
-      id,
-      full_name: fullName,
-      role,
-      department: department ?? null,
-      phone: phone ?? null,
-      active: true,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`,
-    });
-    if (error) throw error;
+    const email = `staff-${crypto.randomUUID()}@subhancare.internal`;
+    const password = crypto.randomUUID();
+    await api.createStaffUser(email, password, fullName, role, undefined, department, undefined, phone);
   },
 };

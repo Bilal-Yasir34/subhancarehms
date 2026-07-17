@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FullPageSpinner } from '../components/ui';
+import { UnauthorizedPage } from '../pages/misc/UnauthorizedPage';
 import type { UserRole } from '../types';
 
 interface Props {
@@ -16,7 +17,7 @@ export function ProtectedRoute({ children, roles }: Props) {
   if (loading) return <FullPageSpinner />;
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
   if (roles && !roles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <UnauthorizedPage />;
   }
   return <>{children}</>;
 }

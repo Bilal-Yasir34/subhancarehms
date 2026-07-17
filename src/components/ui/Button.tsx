@@ -77,28 +77,33 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
     { variant = 'primary', size = 'md', loading, leftIcon, rightIcon, fullWidth, className, children, disabled, ...props },
     ref,
-  ) => (
-    <MotionButton
-      ref={ref}
-      disabled={disabled || loading}
-      whileHover={{ scale: disabled || loading ? 1 : 1.02 }}
-      whileTap={{ scale: disabled || loading ? 1 : 0.96 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-      className={cn(
-        'inline-flex items-center justify-center font-semibold transition-all duration-200 select-none whitespace-nowrap',
-        'focus-visible:ring-2 focus-visible:ring-primary-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-ink-950',
-        'disabled:opacity-50 disabled:pointer-events-none',
-        variants[variant],
-        sizes[size],
-        fullWidth && 'w-full',
-        className,
-      )}
-      {...(props as any)}
-    >
-      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : leftIcon}
-      {children}
-      {!loading && rightIcon}
-    </MotionButton>
-  ),
+  ) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const buttonProps: any = props;
+
+    return (
+      <MotionButton
+        ref={ref}
+        disabled={disabled || loading}
+        whileHover={{ scale: disabled || loading ? 1 : 1.02 }}
+        whileTap={{ scale: disabled || loading ? 1 : 0.96 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+        className={cn(
+          'inline-flex items-center justify-center font-semibold transition-all duration-200 select-none whitespace-nowrap',
+          'focus-visible:ring-2 focus-visible:ring-primary-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-ink-950',
+          'disabled:opacity-50 disabled:pointer-events-none',
+          variants[variant],
+          sizes[size],
+          fullWidth && 'w-full',
+          className,
+        )}
+        {...buttonProps}
+      >
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : leftIcon}
+        {children}
+        {!loading && rightIcon}
+      </MotionButton>
+    );
+  },
 );
 Button.displayName = 'Button';

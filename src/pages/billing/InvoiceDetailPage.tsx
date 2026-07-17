@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  ArrowLeft, Printer, CreditCard, DollarSign, HeartPulse,
+  ArrowLeft, Printer, CreditCard, DollarSign,
   CheckCircle2, Clock, Building2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,7 +17,6 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
   { value: 'card', label: 'Credit/Debit Card' },
   { value: 'insurance', label: 'Insurance' },
   { value: 'online', label: 'Online Transfer' },
-  { value: 'upi', label: 'UPI' },
 ];
 
 export function InvoiceDetailPage() {
@@ -87,8 +86,8 @@ export function InvoiceDetailPage() {
           <div className="bg-gradient-to-r from-primary-600 to-accent-600 px-8 py-8 text-white">
             <div className="flex items-start justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-                  <HeartPulse className="h-7 w-7" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white p-1 shadow-sm">
+                  <img src="/logo.png" className="h-full w-full object-contain" alt="Subhan Care Logo" />
                 </div>
                 <div>
                   <p className="text-xl font-bold">Subhan Care Clinic</p>
@@ -157,7 +156,6 @@ export function InvoiceDetailPage() {
             <div className="flex justify-end">
               <div className="w-full sm:w-72 space-y-2.5">
                 <div className="flex justify-between text-sm"><span className="text-ink-500">Subtotal</span><span className="font-medium text-ink-800 dark:text-ink-200">{formatCurrency(invoice.subtotal)}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-ink-500">Tax ({invoice.taxRate}%)</span><span className="font-medium text-ink-800 dark:text-ink-200">{formatCurrency(invoice.tax)}</span></div>
                 {invoice.discount > 0 && <div className="flex justify-between text-sm"><span className="text-ink-500">Discount</span><span className="font-medium text-secondary-600">-{formatCurrency(invoice.discount)}</span></div>}
                 <div className="border-t border-ink-200 dark:border-ink-800 pt-2.5 flex justify-between items-center">
                   <span className="font-semibold text-ink-900 dark:text-ink-100">Total</span>

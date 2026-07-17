@@ -33,6 +33,15 @@ export function PatientsPage() {
   const [editPatient, setEditPatient] = useState<Patient | null>(null);
   const [deletePatient, setDeletePatient] = useState<Patient | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [departmentsList, setDepartmentsList] = useState<string[]>(DEPARTMENTS);
+
+  useEffect(() => {
+    api.getDepartments().then((list) => {
+      if (list.length > 0) {
+        setDepartmentsList(list.map(d => d.name));
+      }
+    }).catch(err => console.error('Failed to load departments', err));
+  }, []);
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -88,7 +97,7 @@ export function PatientsPage() {
           {showFilters && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-hidden">
               <Select label="Status" options={statusOptions} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} />
-              <Select label="Department" options={[{ value: 'all', label: 'All Departments' }, ...DEPARTMENTS.map((d) => ({ value: d, label: d }))]} value={department} onChange={(e) => { setDepartment(e.target.value); setPage(1); }} />
+              <Select label="Department" options={[{ value: 'all', label: 'All Departments' }, ...departmentsList.map((d) => ({ value: d, label: d }))]} value={department} onChange={(e) => { setDepartment(e.target.value); setPage(1); }} />
             </motion.div>
           )}
         </CardBody>
@@ -113,13 +122,16 @@ export function PatientsPage() {
               <Card hover className="group">
                 <CardBody className="p-5">
                   <div className="flex items-start justify-between mb-3">
-                    <Link to={`/patients/${p.id}`} className="flex items-center gap-3 min-w-0">
+                    <Link to={`/patients/${p.id}`} className="flex items-center gap-3 min-w-0 w-full">
                       <Avatar src={p.avatar} name={`${p.firstName} ${p.lastName}`} size="md" ring />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="font-semibold text-ink-900 dark:text-ink-100 truncate group-hover:text-primary-600 transition-colors">{p.firstName} {p.lastName}</p>
                         <p className="text-xs text-ink-400">{p.mrn}</p>
                       </div>
                     </Link>
+                  </div>
+
+                  <div className="mb-3">
                     <StatusBadge status={p.status} />
                   </div>
 

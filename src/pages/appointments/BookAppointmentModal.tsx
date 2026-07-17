@@ -42,7 +42,7 @@ export function BookAppointmentModal({ open, onClose, onSuccess }: BookAppointme
 
   const selectedPatient = patients.find((p) => p.id === patientId);
   const selectedDoctor = doctors.find((d) => d.id === doctorId);
-  const today = new Date('2026-07-14').toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('sv');
 
   const canNext = (step === 1 && patientId && doctorId) || (step === 2 && date && time);
 

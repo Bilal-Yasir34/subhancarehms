@@ -40,11 +40,29 @@ export function DoctorFormModal({ open, onClose, onSuccess, doctor }: DoctorForm
     },
   });
 
+  const [departmentsList, setDepartmentsList] = useState<string[]>(DEPARTMENTS);
+
+  useEffect(() => {
+    api.getDepartments().then((list) => {
+      if (list.length > 0) {
+        setDepartmentsList(list.map(d => d.name));
+      }
+    }).catch(err => console.error('Failed to load departments', err));
+  }, []);
+
   useEffect(() => {
     if (open) {
       setSchedule(doctor?.schedule ?? []);
+      reset(doctor ? {
+        firstName: doctor.firstName, lastName: doctor.lastName, specialty: doctor.specialty,
+        department: doctor.department, qualification: doctor.qualification, experienceYears: doctor.experienceYears,
+        phone: doctor.phone, email: doctor.email, status: doctor.status, room: doctor.room, fee: doctor.fee,
+      } : {
+        firstName: '', lastName: '', specialty: '', qualification: '', experienceYears: 1,
+        phone: '', email: '', status: 'available', room: '', fee: 150, department: 'General Medicine',
+      });
     }
-  }, [open, doctor]);
+  }, [open, doctor, reset]);
 
   const handleToggleDay = (day: string) => {
     setSchedule(prev => {
@@ -110,7 +128,7 @@ export function DoctorFormModal({ open, onClose, onSuccess, doctor }: DoctorForm
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="Specialty" placeholder="Cardiologist" error={errors.specialty?.message} {...register('specialty', { required: 'Required' })} />
-          <Select label="Department" options={DEPARTMENTS.map((d) => ({ value: d, label: d }))} {...register('department')} />
+          <Select label="Department" options={departmentsList.map((d) => ({ value: d, label: d }))} {...register('department')} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Input label="Qualification" placeholder="MD, FACP" {...register('qualification')} />

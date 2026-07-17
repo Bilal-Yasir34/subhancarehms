@@ -2,17 +2,18 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Stethoscope, CalendarDays, Users, Clock,
-  Mail, Phone, MapPin, Star, Award,
+  Mail, Phone, MapPin, Award, DollarSign,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Card, CardHeader, CardTitle, CardBody, Avatar, StatusBadge, Badge, Button } from '../../components/ui';
 import { CalendarWidget } from '../../components/CalendarWidget';
 import { StatCard } from '../../components/StatCard';
 import { api } from '../../services/api';
+import { supabase } from '../../services/supabase';
 import { useAsync } from '../../hooks';
 import { formatDate } from '../../utils';
 import { SkeletonCard } from '../../components/ui';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import type { Doctor } from '../../types';
 
 
@@ -32,10 +33,29 @@ export function DoctorDashboardPage() {
       setDoctorLoading(false);
       return;
     }
-    api.getDoctor(user.doctorId)
-      .then(setDoctor)
-      .catch(() => setDoctor(null))
-      .finally(() => setDoctorLoading(false));
+    const loadDoctor = () => {
+      api.getDoctor(user.doctorId!)
+        .then(setDoctor)
+        .catch(() => setDoctor(null))
+        .finally(() => setDoctorLoading(false));
+    };
+
+    loadDoctor();
+
+    const channel = supabase
+      .channel(`doctor-dashboard-${user.doctorId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'doctors' },
+        () => {
+          loadDoctor();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user?.doctorId]);
 
   const apptData = appointmentsData?.items ?? [];
@@ -85,7 +105,7 @@ export function DoctorDashboardPage() {
         <StatCard index={0} label="Today's Appointments" value={todayAppts.length} icon={<CalendarDays className="h-5 w-5" />} accent="primary" />
         <StatCard index={1} label="Patients Treated" value={doctor?.patientsTreated ?? 0} loading={doctorLoading} icon={<Users className="h-5 w-5" />} accent="accent" />
         <StatCard index={2} label="Experience" value={doctor?.experienceYears ?? 0} suffix=" yrs" loading={doctorLoading} icon={<Award className="h-5 w-5" />} accent="warning" />
-        <StatCard index={3} label="Rating" value={doctor?.rating ?? 0} suffix="/5" decimals={1} loading={doctorLoading} icon={<Star className="h-5 w-5" />} accent="success" />
+        <StatCard index={3} label="Consultation Fee" value={doctor?.fee ?? 0} prefix="Rs. " loading={doctorLoading} icon={<DollarSign className="h-5 w-5" />} accent="success" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -193,9 +213,13 @@ export function DoctorDashboardPage() {
                         <span className="text-sm font-bold leading-none">{appt.time}</span>
                         <span className="text-[10px] mt-0.5">{appt.durationMin}m</span>
                       </div>
-                      <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" />
+                      <Link to={`/patients/${appt.patientId}`}>
+                        <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" className="hover:ring-2 hover:ring-primary-500 transition-all cursor-pointer" />
+                      </Link>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink-800 dark:text-ink-200 truncate">{appt.patientName}</p>
+                        <Link to={`/patients/${appt.patientId}`} className="text-sm font-medium text-ink-800 dark:text-ink-200 hover:text-primary-600 dark:hover:text-primary-400 transition-colors truncate block">
+                          {appt.patientName}
+                        </Link>
                         <p className="text-xs text-ink-500 dark:text-ink-400 truncate">{appt.type} · {appt.department}</p>
                       </div>
                       <StatusBadge status={appt.status} pulse={appt.status === 'in-progress'} />
@@ -233,9 +257,13 @@ export function DoctorDashboardPage() {
                         <span className="text-[11px] font-semibold leading-none">{formatDate(appt.date, { month: 'short', day: 'numeric' })}</span>
                         <span className="text-xs font-bold mt-0.5">{appt.time}</span>
                       </div>
-                      <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" />
+                      <Link to={`/patients/${appt.patientId}`}>
+                        <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" className="hover:ring-2 hover:ring-primary-500 transition-all cursor-pointer" />
+                      </Link>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink-800 dark:text-ink-200 truncate">{appt.patientName}</p>
+                        <Link to={`/patients/${appt.patientId}`} className="text-sm font-medium text-ink-800 dark:text-ink-200 hover:text-primary-600 dark:hover:text-primary-400 transition-colors truncate block">
+                          {appt.patientName}
+                        </Link>
                         <p className="text-xs text-ink-500 dark:text-ink-400 truncate">{appt.reason}</p>
                       </div>
                       <StatusBadge status={appt.status} />

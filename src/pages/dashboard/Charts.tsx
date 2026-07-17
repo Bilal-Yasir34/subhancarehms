@@ -21,18 +21,22 @@ function ChartTooltip({ active, payload, label, prefix = '' }: { active?: boolea
   );
 }
 
-export function RevenueChart({ data }: { data: { month: string; revenue: number; expenses: number }[] }) {
+export function RevenueChart({ data }: { data: { month: string; revenue: number }[] }) {
   const { theme } = useTheme();
   const grid = theme === 'dark' ? '#1e293b' : '#e2e8f0';
   const axis = theme === 'dark' ? '#64748b' : '#94a3b8';
 
   return (
     <Card className="h-full">
-      <CardHeader className="flex items-center justify-between">
-        <CardTitle>Revenue Overview</CardTitle>
-        <div className="flex items-center gap-3 text-xs">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <CardTitle>Revenue Overview</CardTitle>
+          <p className="text-[11px] text-ink-400 mt-0.5">
+            Monthly revenue generated from paid patient invoices
+          </p>
+        </div>
+        <div className="flex items-center gap-3 text-xs shrink-0">
           <span className="flex items-center gap-1.5 text-ink-500"><span className="h-2.5 w-2.5 rounded-full bg-primary-500" />Revenue</span>
-          <span className="flex items-center gap-1.5 text-ink-500"><span className="h-2.5 w-2.5 rounded-full bg-accent-400" />Expenses</span>
         </div>
       </CardHeader>
       <CardBody className="h-[300px]">
@@ -43,17 +47,12 @@ export function RevenueChart({ data }: { data: { month: string; revenue: number;
                 <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="exp" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
-              </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={grid} vertical={false} />
             <XAxis dataKey="month" stroke={axis} fontSize={12} tickLine={false} axisLine={false} />
             <YAxis stroke={axis} fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `Rs. ${v / 1000}k`} />
             <RTooltip content={<ChartTooltip prefix="Rs. " />} />
             <Area type="monotone" dataKey="revenue" stroke="#2563eb" strokeWidth={2.5} fill="url(#rev)" />
-            <Area type="monotone" dataKey="expenses" stroke="#22d3ee" strokeWidth={2.5} fill="url(#exp)" />
           </AreaChart>
         </ResponsiveContainer>
       </CardBody>

@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, ChevronLeft, X, HeartPulse } from 'lucide-react';
+import type { Variants } from 'framer-motion';
+import { LogOut, ChevronLeft, X } from 'lucide-react';
 import { NAV_ITEMS } from '../constants';
 import { getIcon } from '../utils/icons';
 import { useAuth } from '../context/AuthContext';
@@ -14,14 +15,14 @@ interface SidebarProps {
   onMobileClose: () => void;
 }
 
-const listVariants = {
+const listVariants: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.05, delayChildren: 0.05 } },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, x: -12 },
-  show:   { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } },
+  show:   { opacity: 1, x: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } },
 };
 
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
@@ -44,11 +45,11 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
       )}>
         <div className="flex items-center gap-2.5 overflow-hidden">
           <motion.div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl gradient-brand shadow-md shadow-primary-600/30"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white p-1 overflow-hidden shadow-sm"
             whileHover={{ rotate: [0, -10, 10, 0], scale: 1.08 }}
             transition={{ duration: 0.5 }}
           >
-            <HeartPulse className="h-5 w-5 text-white" />
+            <img src="/logo.png" className="h-full w-full object-contain" alt="Subhan Care Logo" />
           </motion.div>
           <AnimatePresence>
             {!collapsed && (

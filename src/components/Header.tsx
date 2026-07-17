@@ -7,6 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useOnClickOutside } from '../hooks';
 import { api } from '../services/api';
+import { supabase } from '../services/supabase';
 import type { Notification } from '../types';
 import { Breadcrumb } from './Breadcrumb';
 import { Avatar, Badge } from './ui';
@@ -178,7 +179,23 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   useEffect(() => {
     loadNotifications();
-  }, []);
+
+    // Subscribe to new notifications in real-time
+    const channel = supabase
+      .channel('notifications-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications' },
+        () => {
+          loadNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const unread = notifications.filter((n) => !n.read).length;
 
@@ -463,8 +480,8 @@ export function Header({ onMenuClick }: HeaderProps) {
                   </div>
                   <div className="py-1.5">
                     {[
-                      { to: '/settings', icon: UserIcon, label: 'My Profile' },
-                      { to: '/settings', icon: Settings, label: 'Settings' },
+                      { to: '/settings?tab=profile', icon: UserIcon, label: 'My Profile' },
+                      { to: '/settings?tab=appearance', icon: Settings, label: 'Settings' },
                     ].map((item, i) => (
                       <motion.div
                         key={item.label}

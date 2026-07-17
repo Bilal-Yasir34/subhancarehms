@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Bell, Shield, Palette, Moon, Sun, Mail, Eye, EyeOff, Lock, CheckCircle2, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -13,12 +14,24 @@ import { cn } from '../../utils';
 export function SettingsPage() {
   const { user, refreshUser } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [tab, setTab] = useState('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') || 'profile';
+  const [tab, setTab] = useState(tabParam);
+
+  useEffect(() => {
+    setTab(tabParam);
+  }, [tabParam]);
+
+  const handleTabChange = (newTab: string) => {
+    setTab(newTab);
+    setSearchParams({ tab: newTab });
+  };
 
   // Profile form state
   const [name, setName] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
+  const [doctorStatus, setDoctorStatus] = useState<string>('available');
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Security form state
@@ -34,6 +47,34 @@ export function SettingsPage() {
     setName(user?.name ?? '');
     setEmail(user?.email ?? '');
     setPhone(user?.phone ?? '');
+
+    let channel: any = null;
+    if (user?.role === 'doctor' && user?.doctorId) {
+      const loadDoc = () => {
+        api.getDoctor(user.doctorId!)
+          .then((doc) => {
+            if (doc) setDoctorStatus(doc.status);
+          })
+          .catch(() => {});
+      };
+      
+      loadDoc();
+
+      channel = supabase
+        .channel('doctor-settings-status')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'doctors' },
+          () => {
+            loadDoc();
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const tabs = [
@@ -64,6 +105,12 @@ export function SettingsPage() {
       if (emailChanged) {
         const { error } = await supabase.auth.updateUser({ email: email.trim() });
         if (error) throw error;
+      }
+
+      if (user.role === 'doctor' && user.doctorId) {
+        await api.updateDoctor(user.doctorId, {
+          status: doctorStatus as any,
+        });
       }
 
       await refreshUser();
@@ -155,7 +202,7 @@ export function SettingsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <Card className="lg:col-span-1 h-fit">
           <CardBody className="p-3">
-            <Tabs variant="pills" value={tab} onChange={setTab} tabs={tabs} className="flex-col !bg-transparent p-0" />
+            <Tabs variant="pills" value={tab} onChange={handleTabChange} tabs={tabs} className="flex-col !bg-transparent p-0" />
           </CardBody>
         </Card>
 
@@ -177,7 +224,19 @@ export function SettingsPage() {
                     <Input label="Full Name" value={name} onChange={(e) => setName(e.target.value)} />
                     <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} leftIcon={<Mail className="h-4 w-4" />} />
                     <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 0000000" />
-                    <Select label="Language" options={[{ value: 'en', label: 'English' }, { value: 'ur', label: 'Urdu' }]} />
+                    {user?.role === 'doctor' && (
+                      <Select
+                        label="Activity Status"
+                        value={doctorStatus}
+                        onChange={(e) => setDoctorStatus(e.target.value)}
+                        options={[
+                          { value: 'available', label: 'Available' },
+                          { value: 'busy', label: 'Busy' },
+                          { value: 'off-duty', label: 'Off Duty' },
+                          { value: 'on-leave', label: 'On Leave' },
+                        ]}
+                      />
+                    )}
                   </div>
                   <div className="flex justify-end">
                     <Button onClick={handleSaveProfile} loading={savingProfile}>Save Changes</Button>

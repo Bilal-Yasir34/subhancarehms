@@ -5,6 +5,7 @@ import { Check, Clock, ArrowLeft, Stethoscope } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardBody, Button, Select, Input, Textarea, Avatar } from '../../components/ui';
 import { api } from '../../services/api';
+import { supabase } from '../../services/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { TIME_SLOTS } from '../../constants';
 import type { Patient, Doctor, Appointment } from '../../types';
@@ -27,11 +28,30 @@ export function RequestAppointmentPage() {
     if (user?.patientId) {
       api.getPatient(user.patientId).then(setPatient).catch(() => {});
     }
-    api.getDoctors({ pageSize: 100 }).then((r) => setDoctors(r.items)).catch(() => {});
+    const loadDoctors = () => {
+      api.getDoctors({ pageSize: 100 }).then((r) => setDoctors(r.items)).catch(() => {});
+    };
+    
+    loadDoctors();
+
+    const channel = supabase
+      .channel('request-appointment-doctors')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'doctors' },
+        () => {
+          loadDoctors();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user?.patientId]);
 
   const selectedDoctor = doctors.find((d) => d.id === doctorId);
-  const today = new Date('2026-07-14').toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('sv');
 
   const canNext = (step === 1 && doctorId) || (step === 2 && date && time);
 

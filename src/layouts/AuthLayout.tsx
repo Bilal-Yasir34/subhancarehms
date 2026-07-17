@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { HeartPulse, ShieldCheck, Activity, Stethoscope } from 'lucide-react';
+import { ShieldCheck, Activity, Stethoscope } from 'lucide-react';
 import { APP_NAME, APP_TAGLINE } from '../constants';
 
 interface AuthLayoutProps {
@@ -27,8 +27,8 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
         <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16 text-white w-full">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-              <HeartPulse className="h-6 w-6" />
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1 shadow-sm">
+              <img src="/logo.png" className="h-full w-full object-contain" alt="Subhan Care Logo" />
             </div>
             <div>
               <p className="text-xl font-bold leading-none">{APP_NAME}</p>
@@ -85,8 +85,8 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         <div className="absolute inset-0 gradient-mesh" />
         {/* Mobile logo */}
         <div className="lg:hidden absolute top-8 left-8 flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-brand shadow-sm shadow-primary-600/30">
-            <HeartPulse className="h-5 w-5 text-white" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white p-1 shadow-sm">
+            <img src="/logo.png" className="h-full w-full object-contain" alt="Subhan Care Logo" />
           </div>
           <p className="font-bold text-ink-900 dark:text-white">{APP_NAME}</p>
         </div>

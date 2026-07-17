@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Stethoscope, Filter, Pencil, Trash2, Star, Phone, Mail,
+  Stethoscope, Filter, Pencil, Trash2, Phone, Mail,
   LayoutGrid, Table as TableIcon, Eye, GraduationCap, Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,6 +10,7 @@ import { SearchBox } from '../../components/SearchBox';
 import { Tabs } from '../../components/Tabs';
 import { DoctorFormModal } from './DoctorFormModal';
 import { api } from '../../services/api';
+import { supabase } from '../../services/supabase';
 import { useDebounce } from '../../hooks';
 import { DEPARTMENTS, WEEK_DAYS } from '../../constants';
 import type { Doctor } from '../../types';
@@ -38,6 +39,15 @@ export function DoctorsPage() {
   const [deleteDoctor, setDeleteDoctor] = useState<Doctor | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [detailDoctor, setDetailDoctor] = useState<Doctor | null>(null);
+  const [departmentsList, setDepartmentsList] = useState<string[]>(DEPARTMENTS);
+
+  useEffect(() => {
+    api.getDepartments().then((list) => {
+      if (list.length > 0) {
+        setDepartmentsList(list.map(d => d.name));
+      }
+    }).catch(err => console.error('Failed to load departments', err));
+  }, []);
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -54,7 +64,24 @@ export function DoctorsPage() {
     }
   }, [page, debouncedSearch, status, department]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+
+    const channel = supabase
+      .channel('doctors-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'doctors' },
+        () => {
+          load();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [load]);
 
   const handleDelete = async () => {
     if (!deleteDoctor) return;
@@ -100,7 +127,7 @@ export function DoctorsPage() {
           {showFilters && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-hidden">
               <Select label="Status" options={statusOptions} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} />
-              <Select label="Department" options={[{ value: 'all', label: 'All Departments' }, ...DEPARTMENTS.map((d) => ({ value: d, label: d }))]} value={department} onChange={(e) => { setDepartment(e.target.value); setPage(1); }} />
+              <Select label="Department" options={[{ value: 'all', label: 'All Departments' }, ...departmentsList.map((d) => ({ value: d, label: d }))]} value={department} onChange={(e) => { setDepartment(e.target.value); setPage(1); }} />
             </motion.div>
           )}
         </CardBody>
@@ -134,9 +161,6 @@ export function DoctorsPage() {
 
                   <div className="flex items-center gap-2 mb-3">
                     <Badge variant="primary" size="sm">{doc.department}</Badge>
-                    <span className="flex items-center gap-0.5 text-xs font-medium text-warning-500">
-                      <Star className="h-3.5 w-3.5 fill-current" />{doc.rating}
-                    </span>
                   </div>
 
                   <div className="space-y-1.5 text-sm">
@@ -239,16 +263,38 @@ export function DoctorsPage() {
               </div>
             </div>
 
+            <div className="card-base rounded-lg p-4 space-y-2">
+              <label className="block text-xs font-semibold text-ink-500 dark:text-ink-400">Update Activity Status</label>
+              <Select
+                value={detailDoctor.status}
+                onChange={async (e) => {
+                  const newStatus = e.target.value as Doctor['status'];
+                  try {
+                    await api.updateDoctor(detailDoctor.id, { status: newStatus });
+                    toast.success('Doctor status updated');
+                    setDetailDoctor(prev => prev ? { ...prev, status: newStatus } : null);
+                    load();
+                  } catch {
+                    toast.error('Failed to update status');
+                  }
+                }}
+                options={[
+                  { value: 'available', label: 'Available' },
+                  { value: 'busy', label: 'Busy' },
+                  { value: 'off-duty', label: 'Off Duty' },
+                  { value: 'on-leave', label: 'On Leave' },
+                ]}
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="card-base rounded-lg p-4">
                 <p className="text-xs text-ink-400">Experience</p>
                 <p className="text-lg font-bold text-ink-900 dark:text-ink-100">{detailDoctor.experienceYears} years</p>
               </div>
               <div className="card-base rounded-lg p-4">
-                <p className="text-xs text-ink-400">Rating</p>
-                <p className="text-lg font-bold text-ink-900 dark:text-ink-100 flex items-center gap-1">
-                  <Star className="h-4 w-4 fill-warning-400 text-warning-400" />{detailDoctor.rating}
-                </p>
+                <p className="text-xs text-ink-400">Room Number</p>
+                <p className="text-lg font-bold text-ink-900 dark:text-ink-100">{detailDoctor.room}</p>
               </div>
               <div className="card-base rounded-lg p-4">
                 <p className="text-xs text-ink-400">Patients Treated</p>
@@ -266,7 +312,6 @@ export function DoctorsPage() {
                 { icon: GraduationCap, label: 'Qualification', value: detailDoctor.qualification },
                 { icon: Phone, label: 'Phone', value: detailDoctor.phone },
                 { icon: Mail, label: 'Email', value: detailDoctor.email },
-                { icon: Stethoscope, label: 'Room', value: detailDoctor.room },
               ].map((row) => (
                 <div key={row.label} className="flex items-center gap-3">
                   <row.icon className="h-4 w-4 text-ink-400 shrink-0" />

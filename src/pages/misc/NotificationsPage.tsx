@@ -7,12 +7,13 @@ import {
 import toast from 'react-hot-toast';
 import {
   Card, CardBody, CardHeader, CardTitle,
-  Badge, SkeletonCard, EmptyState, Button, Input,
+  Badge, SkeletonCard, EmptyState, Button, Input, Avatar,
 } from '../../components/ui';
 import { api } from '../../services/api';
 import type { Notification, StaffProfile, UserRole } from '../../types';
 import { timeAgo, cn } from '../../utils';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../services/supabase';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -101,13 +102,7 @@ function UserSearchDropdown({ staffList, value, onChange }: UserSearchDropdownPr
       >
         {value ? (
           <span className="flex items-center gap-2.5 min-w-0">
-            {value.avatar ? (
-              <img src={value.avatar} alt={value.fullName} className="h-7 w-7 rounded-full object-cover shrink-0 ring-1 ring-ink-200 dark:ring-ink-700" />
-            ) : (
-              <span className="h-7 w-7 rounded-full bg-primary-100 dark:bg-primary-500/20 flex items-center justify-center shrink-0 text-xs font-bold text-primary-600 dark:text-primary-400">
-                {value.fullName.charAt(0).toUpperCase()}
-              </span>
-            )}
+            <Avatar name={value.fullName} src={value.avatar} size="xs" className="h-7 w-7 ring-1 ring-ink-200 dark:ring-ink-700" />
             <span className="font-medium text-ink-800 dark:text-ink-200 truncate">{value.fullName}</span>
             {rb && <Badge variant={rb.variant} size="sm" className="capitalize shrink-0">{rb.label}</Badge>}
           </span>
@@ -176,17 +171,7 @@ function UserSearchDropdown({ staffList, value, onChange }: UserSearchDropdownPr
                       )}
                     >
                       {/* Avatar */}
-                      {s.avatar ? (
-                        <img
-                          src={s.avatar}
-                          alt={s.fullName}
-                          className="h-9 w-9 rounded-full object-cover shrink-0 ring-2 ring-white dark:ring-ink-800"
-                        />
-                      ) : (
-                        <span className="h-9 w-9 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center shrink-0 text-sm font-bold text-white ring-2 ring-white dark:ring-ink-800">
-                          {s.fullName.charAt(0).toUpperCase()}
-                        </span>
-                      )}
+                      <Avatar name={s.fullName} src={s.avatar} size="sm" className="h-9 w-9 ring-2 ring-white dark:ring-ink-800" />
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
@@ -477,7 +462,25 @@ export function NotificationsPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+
+    // Subscribe to new notifications in real-time
+    const channel = supabase
+      .channel('notifications-page-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications' },
+        () => {
+          api.getNotifications().then(setNotifications).catch(console.error);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const unread = notifications.filter((n) => !n.read).length;
 

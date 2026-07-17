@@ -20,8 +20,10 @@ import { BloodBankPage } from './pages/bloodbank/BloodBankPage';
 import { ReportsPage } from './pages/reports/ReportsPage';
 import { SettingsPage } from './pages/misc/SettingsPage';
 import { NotificationsPage } from './pages/misc/NotificationsPage';
+import { NotFoundPage } from './pages/misc/NotFoundPage';
 import { StaffPage } from './pages/staff/StaffPage';
 import { RegisterUserPage } from './pages/admin/RegisterUserPage';
+import { DepartmentsPage } from './pages/admin/DepartmentsPage';
 import { MyPatientsPage } from './pages/doctor/MyPatientsPage';
 import { MySchedulePage } from './pages/doctor/MySchedulePage';
 import { RequestAppointmentPage } from './pages/patients/RequestAppointmentPage';
@@ -72,13 +74,14 @@ export default function App() {
               <Route path="/request-appointment" element={<ProtectedRoute roles={['patient']}><RequestAppointmentPage /></ProtectedRoute>} />
               <Route path="/medical-history" element={<ProtectedRoute roles={['patient']}><MedicalHistoryPage /></ProtectedRoute>} />
 
-              {/* Admin + Doctor */}
-              <Route path="/appointments" element={<ProtectedRoute roles={['admin', 'doctor']}><AppointmentsPage /></ProtectedRoute>} />
+              {/* Admin + Doctor + Patient */}
+              <Route path="/appointments" element={<ProtectedRoute roles={['admin', 'doctor', 'patient']}><AppointmentsPage /></ProtectedRoute>} />
               <Route path="/patients" element={<ProtectedRoute roles={['admin']}><PatientsPage /></ProtectedRoute>} />
-              <Route path="/patients/:id" element={<ProtectedRoute roles={['admin', 'doctor']}><PatientDetailPage /></ProtectedRoute>} />
+              <Route path="/patients/:id" element={<ProtectedRoute roles={['admin', 'doctor', 'patient']}><PatientDetailPage /></ProtectedRoute>} />
 
               {/* Admin only */}
               <Route path="/doctors" element={<ProtectedRoute roles={['admin']}><DoctorsPage /></ProtectedRoute>} />
+              <Route path="/departments" element={<ProtectedRoute roles={['admin']}><DepartmentsPage /></ProtectedRoute>} />
               <Route path="/billing" element={<ProtectedRoute roles={['admin', 'patient']}><BillingPage /></ProtectedRoute>} />
               <Route path="/billing/:id" element={<ProtectedRoute roles={['admin', 'patient']}><InvoiceDetailPage /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute roles={['admin']}><ReportsPage /></ProtectedRoute>} />
@@ -96,7 +99,7 @@ export default function App() {
             </Route>
 
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

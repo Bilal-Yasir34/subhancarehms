@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, CalendarDays, Filter, Eye, CheckCircle2,
@@ -42,8 +43,8 @@ export function AppointmentsPage() {
   const [canceling, setCanceling] = useState(false);
   const [detailAppt, setDetailAppt] = useState<Appointment | null>(null);
   const [calAppts, setCalAppts] = useState<Appointment[]>([]);
-  const [calMonth, setCalMonth] = useState(new Date(2026, 6, 1));
-  const [calSelected, setCalSelected] = useState<Date | null>(new Date(2026, 6, 14));
+  const [calMonth, setCalMonth] = useState(new Date());
+  const [calSelected, setCalSelected] = useState<Date | null>(new Date());
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -171,7 +172,13 @@ export function AppointmentsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="font-semibold text-ink-900 dark:text-ink-100 truncate">{appt.patientName}</p>
+                              {appt.patientId ? (
+                                <Link to={`/patients/${appt.patientId}`} className="font-semibold text-ink-900 dark:text-ink-100 hover:text-primary-600 dark:hover:text-primary-400 transition-colors truncate block">
+                                  {appt.patientName}
+                                </Link>
+                              ) : (
+                                <p className="font-semibold text-ink-900 dark:text-ink-100 truncate">{appt.patientName}</p>
+                              )}
                               <p className="text-xs text-ink-500 dark:text-ink-400 truncate">{appt.doctorName} · {appt.department}</p>
                             </div>
                             <StatusBadge status={appt.status} pulse={appt.status === 'in-progress'} />
@@ -223,7 +230,7 @@ export function AppointmentsPage() {
                 {cells.map((day, i) => {
                   if (!day) return <div key={i} />;
                   const d = new Date(year, month, day);
-                  const isToday = d.toDateString() === new Date('2026-07-14').toDateString();
+                  const isToday = d.toDateString() === new Date().toDateString();
                   const isSelected = calSelected?.toDateString() === d.toDateString();
                   const dayAppts = apptsByDate.get(d.toDateString()) ?? [];
                   return (
@@ -267,12 +274,33 @@ export function AppointmentsPage() {
                       <div className="flex flex-col items-center justify-center h-10 w-12 rounded-lg bg-ink-100 dark:bg-ink-800 shrink-0">
                         <span className="text-xs font-bold text-ink-700 dark:text-ink-300">{appt.time}</span>
                       </div>
-                      <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-ink-800 dark:text-ink-200 truncate">{appt.patientName}</p>
-                        <p className="text-xs text-ink-400 truncate">{appt.doctorName}</p>
-                      </div>
-                      <StatusBadge status={appt.status} />
+                      {appt.patientId ? (
+                        <>
+                          <Link to={`/patients/${appt.patientId}`}>
+                            <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" className="hover:ring-2 hover:ring-primary-500 transition-all cursor-pointer" />
+                          </Link>
+                          <div className="flex-1 min-w-0">
+                            <Link to={`/patients/${appt.patientId}`} className="text-sm font-medium text-ink-800 dark:text-ink-200 hover:text-primary-600 dark:hover:text-primary-400 transition-colors truncate block">
+                              {appt.patientName}
+                            </Link>
+                            <p className="text-xs text-ink-400 truncate mt-0.5">{appt.doctorName}</p>
+                            <div className="mt-1.5 flex">
+                              <StatusBadge status={appt.status} />
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Avatar src={appt.patientAvatar} name={appt.patientName} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-ink-800 dark:text-ink-200 truncate">{appt.patientName}</p>
+                            <p className="text-xs text-ink-400 truncate mt-0.5">{appt.doctorName}</p>
+                            <div className="mt-1.5 flex">
+                              <StatusBadge status={appt.status} />
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -311,13 +339,27 @@ export function AppointmentsPage() {
         {detailAppt && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar src={detailAppt.patientAvatar} name={detailAppt.patientName} size="lg" />
-                <div>
-                  <p className="font-semibold text-ink-900 dark:text-ink-100">{detailAppt.patientName}</p>
-                  <p className="text-sm text-ink-500">{detailAppt.doctorName}</p>
-                </div>
-              </div>
+              {detailAppt.patientId ? (
+                <>
+                  <Link to={`/patients/${detailAppt.patientId}`} onClick={() => setDetailAppt(null)}>
+                    <Avatar src={detailAppt.patientAvatar} name={detailAppt.patientName} size="lg" className="hover:ring-4 hover:ring-primary-500/25 transition-all cursor-pointer" />
+                  </Link>
+                  <div>
+                    <Link to={`/patients/${detailAppt.patientId}`} onClick={() => setDetailAppt(null)} className="font-semibold text-ink-900 dark:text-ink-100 hover:text-primary-600 dark:hover:text-primary-400 transition-colors block">
+                      {detailAppt.patientName}
+                    </Link>
+                    <p className="text-sm text-ink-500">{detailAppt.doctorName}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Avatar src={detailAppt.patientAvatar} name={detailAppt.patientName} size="lg" />
+                  <div>
+                    <p className="font-semibold text-ink-900 dark:text-ink-100">{detailAppt.patientName}</p>
+                    <p className="text-sm text-ink-500">{detailAppt.doctorName}</p>
+                  </div>
+                </>
+              )}
               <StatusBadge status={detailAppt.status} />
             </div>
             <div className="grid grid-cols-2 gap-3">

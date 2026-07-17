@@ -19,7 +19,6 @@ const statusOptions = [
   { value: 'paid', label: 'Paid' },
   { value: 'pending', label: 'Pending' },
   { value: 'overdue', label: 'Overdue' },
-  { value: 'partially-paid', label: 'Partially Paid' },
 ];
 
 const itemCatalog = [
@@ -131,8 +130,7 @@ export function BillingPage() {
   const removeItem = (id: string) => setItems((prev) => prev.filter((it) => it.id !== id));
 
   const subtotal = items.reduce((s, it) => s + it.unitPrice * it.quantity, 0);
-  const tax = Math.round(subtotal * 0.08);
-  const total2 = subtotal + tax - discount;
+  const total2 = subtotal - discount;
 
   const handleCreate = async () => {
     const patient = patients.find((p) => p.id === selectedPatient);
@@ -324,7 +322,6 @@ export function BillingPage() {
             <div className="flex justify-end">
               <div className="w-full sm:w-72 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-ink-500">Subtotal</span><span className="font-medium text-ink-800 dark:text-ink-200">{formatCurrency(subtotal)}</span></div>
-                <div className="flex justify-between"><span className="text-ink-500">Tax (8%)</span><span className="font-medium text-ink-800 dark:text-ink-200">{formatCurrency(tax)}</span></div>
                 <div className="flex justify-between items-center">
                   <span className="text-ink-500">Discount</span>
                   <input type="number" value={discount} onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))} className="w-24 h-8 text-right rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-800 text-sm" />
