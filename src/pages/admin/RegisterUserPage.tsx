@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { UserPlus, Mail, Lock, Phone, HeartPulse, Stethoscope, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Card, CardBody, CardHeader, CardTitle, Button, Input, Select } from '../../components/ui';
+import { Card, CardBody, CardHeader, CardTitle, Button, Input, Select, Modal } from '../../components/ui';
 import { api } from '../../services/api';
 import { DEPARTMENTS, BLOOD_TYPES } from '../../constants';
 import type { UserRole, Gender, PatientStatus } from '../../types';
@@ -46,6 +46,7 @@ export function RegisterUserPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showDuplicateEmailModal, setShowDuplicateEmailModal] = useState(false);
 
   const resetForm = () => {
     setFullName('');
@@ -78,6 +79,15 @@ export function RegisterUserPage() {
 
     setSaving(true);
     try {
+      if (createPortal) {
+        const emailExists = await api.checkEmailExists(email);
+        if (emailExists) {
+          setShowDuplicateEmailModal(true);
+          setSaving(false);
+          return;
+        }
+      }
+
       if (role === 'doctor') {
         const names = fullName.split(' ');
         const firstName = names[0];
@@ -374,6 +384,35 @@ export function RegisterUserPage() {
           </Button>
         </div>
       </form>
+
+      {showDuplicateEmailModal && (
+        <Modal
+          open={showDuplicateEmailModal}
+          onClose={() => setShowDuplicateEmailModal(false)}
+          title="Registration Error"
+          size="sm"
+        >
+          <div className="text-center py-2">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-danger-50 dark:bg-danger-500/15 text-danger-500">
+              <ShieldAlert className="h-6 w-6" />
+            </div>
+            <h3 className="text-base font-semibold text-ink-900 dark:text-white">Email Already Registered</h3>
+            <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">
+              A user with the email <span className="font-semibold text-ink-900 dark:text-white">{email}</span> already exists. Please use different credentials.
+            </p>
+            <div className="mt-6">
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => setShowDuplicateEmailModal(false)}
+                className="w-full"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

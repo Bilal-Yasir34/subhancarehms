@@ -1132,6 +1132,16 @@ export const api = {
     return (data ?? []).map(mapStaffProfile);
   },
 
+  async checkEmailExists(email: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('staff_profiles')
+      .select('id')
+      .eq('email', email.trim().toLowerCase())
+      .maybeSingle();
+    if (error) throw error;
+    return !!data;
+  },
+
   async createStaffUser(email: string, password: string, fullName: string, role: UserRole, doctorId?: string, department?: string, patientId?: string, phone?: string): Promise<void> {
     // Use a separate, isolated Supabase client so that signUp does NOT fire
     // onAuthStateChange on the main client. This keeps the admin's session and
