@@ -28,6 +28,7 @@ import { MyPatientsPage } from './pages/doctor/MyPatientsPage';
 import { MySchedulePage } from './pages/doctor/MySchedulePage';
 import { RequestAppointmentPage } from './pages/patients/RequestAppointmentPage';
 import { MedicalHistoryPage } from './pages/patients/MedicalHistoryPage';
+import { PrescriptionsPage } from './pages/patients/PrescriptionsPage';
 
 export default function App() {
   return (
@@ -73,6 +74,7 @@ export default function App() {
               {/* Patient only */}
               <Route path="/request-appointment" element={<ProtectedRoute roles={['patient']}><RequestAppointmentPage /></ProtectedRoute>} />
               <Route path="/medical-history" element={<ProtectedRoute roles={['patient']}><MedicalHistoryPage /></ProtectedRoute>} />
+              <Route path="/prescriptions" element={<ProtectedRoute roles={['patient']}><PrescriptionsPage /></ProtectedRoute>} />
 
               {/* Admin + Doctor + Patient */}
               <Route path="/appointments" element={<ProtectedRoute roles={['admin', 'doctor', 'patient']}><AppointmentsPage /></ProtectedRoute>} />

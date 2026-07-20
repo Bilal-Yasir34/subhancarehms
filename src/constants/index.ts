@@ -11,6 +11,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard', roles: ['admin', 'doctor', 'general_staff', 'patient'] },
   { label: 'Request Appointment', path: '/request-appointment', icon: 'CalendarDays', roles: ['patient'] },
   { label: 'Medical History', path: '/medical-history', icon: 'HeartPulse', roles: ['patient'] },
+  { label: 'Prescriptions', path: '/prescriptions', icon: 'Pill', roles: ['patient'] },
   { label: 'Patients', path: '/patients', icon: 'Users', roles: ['admin'] },
   { label: 'Doctors', path: '/doctors', icon: 'Stethoscope', roles: ['admin'] },
   { label: 'Departments', path: '/departments', icon: 'Building2', roles: ['admin'] },

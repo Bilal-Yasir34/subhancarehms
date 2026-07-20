@@ -248,7 +248,9 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         {/* Search */}
         <div className="relative flex-1 max-w-md ml-auto sm:ml-6" ref={searchRef}>
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+            <Search className="h-4 w-4 text-ink-400" />
+          </div>
           <input
             value={search}
             onFocus={() => setResultsOpen(true)}
@@ -259,7 +261,9 @@ export function Header({ onMenuClick }: HeaderProps) {
             placeholder={getSearchPlaceholder()}
             className="input-base pl-10 h-10 bg-ink-50/80 dark:bg-ink-800/50 rounded-xl"
           />
-          <kbd className="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 items-center gap-0.5 rounded-md border border-ink-200 dark:border-ink-700 px-1.5 py-0.5 text-[10px] font-medium text-ink-400">⌘K</kbd>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+            <kbd className="hidden md:flex items-center gap-0.5 rounded-md border border-ink-200 dark:border-ink-700 px-1.5 py-0.5 text-[10px] font-medium text-ink-400">⌘K</kbd>
+          </div>
 
           <AnimatePresence>
             {resultsOpen && search.trim() && (

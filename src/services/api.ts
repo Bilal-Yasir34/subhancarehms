@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type {
   Patient, Doctor, Appointment, Invoice, Department, ActivityItem, Notification,
-  UserRole, StaffProfile, InventoryItem, MedicalRecord, BloodBankStock,
+  UserRole, StaffProfile, InventoryItem, MedicalRecord, BloodBankStock, Prescription,
 } from '../types';
 // utils import removed
 
@@ -263,6 +263,37 @@ function mapStaffProfile(row: any): StaffProfile {
     createdAt: row.created_at,
     tempCode: row.temp_code,
   };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapPrescription(row: any): Prescription {
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    doctorId: row.doctor_id,
+    doctorName: row.doctor_name,
+    medicationId: row.medication_id,
+    medicationName: row.medication_name,
+    dosage: row.dosage,
+    duration: row.duration,
+    instructions: row.instructions,
+    notes: row.notes,
+    createdAt: row.created_at,
+  };
+}
+
+function prescriptionToRow(data: Partial<Prescription>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (data.patientId !== undefined) row.patient_id = data.patientId;
+  if (data.doctorId !== undefined) row.doctor_id = data.doctorId;
+  if (data.doctorName !== undefined) row.doctor_name = data.doctorName;
+  if (data.medicationId !== undefined) row.medication_id = data.medicationId;
+  if (data.medicationName !== undefined) row.medication_name = data.medicationName;
+  if (data.dosage !== undefined) row.dosage = data.dosage;
+  if (data.duration !== undefined) row.duration = data.duration;
+  if (data.instructions !== undefined) row.instructions = data.instructions;
+  if (data.notes !== undefined) row.notes = data.notes;
+  return row;
 }
 
 export const api = {
@@ -1206,5 +1237,34 @@ export const api = {
     const email = `staff-${crypto.randomUUID()}@subhancare.internal`;
     const password = crypto.randomUUID();
     await api.createStaffUser(email, password, fullName, role, undefined, department, undefined, phone);
+  },
+
+  // ----- Prescriptions -----
+  async getPrescriptions(params?: { patientId?: string; doctorId?: string; page?: number; pageSize?: number; search?: string }): Promise<{ items: Prescription[]; total: number }> {
+    let query = supabase.from('prescriptions').select('*', { count: 'exact' });
+    if (params?.patientId) query = query.eq('patient_id', params.patientId);
+    if (params?.doctorId) query = query.eq('doctor_id', params.doctorId);
+    if (params?.search) {
+      const q = params.search;
+      query = query.or(`medication_name.ilike.%${q}%,doctor_name.ilike.%${q}%,dosage.ilike.%${q}%`);
+    }
+    const page = params?.page ?? 1;
+    const pageSize = params?.pageSize ?? 100;
+    query = query.order('created_at', { ascending: false }).range((page - 1) * pageSize, page * pageSize - 1);
+    const { data, error, count } = await query;
+    if (error) throw error;
+    return { items: (data ?? []).map(mapPrescription), total: count ?? 0 };
+  },
+
+  async createPrescription(data: Partial<Prescription>): Promise<Prescription> {
+    const row = prescriptionToRow(data);
+    const { data: result, error } = await supabase.from('prescriptions').insert(row).select().single();
+    if (error) throw error;
+    return mapPrescription(result);
+  },
+
+  async deletePrescription(id: string): Promise<void> {
+    const { error } = await supabase.from('prescriptions').delete().eq('id', id);
+    if (error) throw error;
   },
 };

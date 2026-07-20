@@ -12,7 +12,9 @@ interface SearchBoxProps {
 export function SearchBox({ value, onChange, placeholder = 'Search…', className, autoFocus }: SearchBoxProps) {
   return (
     <div className={cn('relative', className)}>
-      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-400 pointer-events-none" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+        <Search className="h-4 w-4 text-ink-400" />
+      </div>
       <input
         type="text"
         value={value}
@@ -24,7 +26,7 @@ export function SearchBox({ value, onChange, placeholder = 'Search…', classNam
       {value && (
         <button
           onClick={() => onChange('')}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 dark:hover:text-ink-200 transition-colors"
+          className="absolute inset-y-0 right-0 flex items-center pr-3 text-ink-400 hover:text-ink-600 dark:hover:text-ink-200 transition-colors"
           aria-label="Clear search"
         >
           <X className="h-4 w-4" />

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   User, Phone, Mail, MapPin, Droplet, Calendar, Activity,
-  HeartPulse, AlertCircle, CalendarDays, Clock, FileText, Plus, Trash2,
+  HeartPulse, AlertCircle, CalendarDays, Clock, FileText, Plus, Trash2, Pill,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Card, CardHeader, CardTitle, CardBody, Avatar, StatusBadge, Badge, Button, Skeleton, EmptyState, Modal, Input, Textarea } from '../../components/ui';
@@ -18,6 +18,12 @@ export function PatientDashboardPage() {
   const navigate = useNavigate();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const { data: prescriptionsData } = useAsync(
+    () => (user?.patientId ? api.getPrescriptions({ patientId: user.patientId }) : Promise.resolve({ items: [], total: 0 })),
+    [user?.patientId]
+  );
+  const prescriptions = prescriptionsData?.items ?? [];
 
   const [recordOpen, setRecordOpen] = useState(false);
   const [diagnosis, setDiagnosis] = useState('');
@@ -312,6 +318,49 @@ export function PatientDashboardPage() {
                   ))
                 )}
               </div>
+            </CardBody>
+          </Card>
+
+          {/* Suggested Prescriptions */}
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Pill className="h-5 w-5 text-primary-500" /> Prescribed Medications
+                </CardTitle>
+                <Badge variant="neutral">{prescriptions.length}</Badge>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/prescriptions')}>
+                View All Prescriptions →
+              </Button>
+            </CardHeader>
+            <CardBody className="p-0">
+              {prescriptions.length === 0 ? (
+                <p className="px-5 py-6 text-center text-sm text-ink-400">No active prescribed medications.</p>
+              ) : (
+                <div className="divide-y divide-ink-100 dark:divide-ink-800/60">
+                  {prescriptions.slice(0, 3).map((p, i) => (
+                    <motion.div
+                      key={p.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-ink-50/60 dark:hover:bg-ink-800/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 shrink-0">
+                          <Pill className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-ink-800 dark:text-ink-200 truncate">{p.medicationName}</p>
+                          <p className="text-xs text-ink-500 dark:text-ink-400 truncate">Referred by {p.doctorName} • {formatDate(p.createdAt)}</p>
+                        </div>
+                      </div>
+                      <Badge variant="primary" className="shrink-0">{p.dosage}</Badge>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </CardBody>
           </Card>
 

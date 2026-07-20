@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, Phone, Mail, MapPin, Droplet, Calendar, User,
-  Pencil, Trash2, Activity, HeartPulse, AlertCircle, Plus, FileText,
+  Pencil, Trash2, Activity, HeartPulse, AlertCircle, Plus, FileText, Pill,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardBody, CardHeader, CardTitle, Avatar, StatusBadge, Badge, Button, Skeleton, EmptyState, ConfirmDialog, Modal, Input, Textarea } from '../../components/ui';
 import { PatientFormModal } from './PatientFormModal';
+import { SuggestMedicineModal } from '../doctor/SuggestMedicineModal';
 import { api } from '../../services/api';
-import type { Patient } from '../../types';
+import type { Patient, Prescription } from '../../types';
 import { calcAge, formatDate, formatDateTime, cn } from '../../utils';
 export function PatientDetailPage() {
   const { id } = useParams();
@@ -91,10 +92,18 @@ export function PatientDetailPage() {
   };
   const navigate = useNavigate();
   const [patient, setPatient] = useState<Patient | null>(null);
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [suggestModalOpen, setSuggestModalOpen] = useState(false);
+
+  const loadPrescriptions = (patientId: string) => {
+    api.getPrescriptions({ patientId })
+      .then((res) => setPrescriptions(res.items))
+      .catch(() => setPrescriptions([]));
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -102,6 +111,7 @@ export function PatientDetailPage() {
     api.getPatient(id)
       .then((p) => {
         setPatient(p);
+        loadPrescriptions(p.id);
       })
       .catch((err) => {
         console.error(err);
@@ -115,11 +125,25 @@ export function PatientDetailPage() {
   const reload = () => {
     if (id) {
       api.getPatient(id)
-        .then(setPatient)
+        .then((p) => {
+          setPatient(p);
+          loadPrescriptions(p.id);
+        })
         .catch((err) => {
           console.error(err);
           setPatient(null);
         });
+    }
+  };
+
+  const handleDeletePrescription = async (prescriptionId: string) => {
+    if (!window.confirm('Are you sure you want to remove this suggested medicine?')) return;
+    try {
+      await api.deletePrescription(prescriptionId);
+      toast.success('Prescription removed');
+      if (patient) loadPrescriptions(patient.id);
+    } catch {
+      toast.error('Failed to remove prescription');
     }
   };
 
@@ -171,8 +195,17 @@ export function PatientDetailPage() {
           <ArrowLeft className="h-4 w-4" /> Back to Patients
         </Link>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" leftIcon={<Pencil className="h-4 w-4" />} onClick={() => setEditOpen(true)}>Edit</Button>
-          <Button variant="danger" size="sm" leftIcon={<Trash2 className="h-4 w-4" />} onClick={() => setDeleteOpen(true)}>Delete</Button>
+          {(user?.role === 'doctor' || user?.role === 'admin') && (
+            <Button size="sm" leftIcon={<Pill className="h-4 w-4" />} onClick={() => setSuggestModalOpen(true)}>
+              Suggest Medicine
+            </Button>
+          )}
+          {user?.role === 'admin' && (
+            <>
+              <Button variant="outline" size="sm" leftIcon={<Pencil className="h-4 w-4" />} onClick={() => setEditOpen(true)}>Edit</Button>
+              <Button variant="danger" size="sm" leftIcon={<Trash2 className="h-4 w-4" />} onClick={() => setDeleteOpen(true)}>Delete</Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -340,9 +373,70 @@ export function PatientDetailPage() {
               )}
             </CardBody>
           </Card>
+
+          {/* Prescriptions & Suggested Medicines */}
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Pill className="h-5 w-5 text-primary-500" /> Prescriptions & Suggested Medicines
+                </CardTitle>
+                <Badge variant="neutral">{prescriptions.length}</Badge>
+              </div>
+              {(user?.role === 'doctor' || user?.role === 'admin') && (
+                <Button size="sm" variant="outline" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => setSuggestModalOpen(true)}>
+                  Suggest Medicine
+                </Button>
+              )}
+            </CardHeader>
+            <CardBody className="p-0">
+              {prescriptions.length === 0 ? (
+                <EmptyState icon={<Pill className="h-8 w-8" />} title="No prescribed medications" description="No medicines have been suggested for this patient yet." className="py-8" />
+              ) : (
+                <div className="divide-y divide-ink-100 dark:divide-ink-800">
+                  {prescriptions.map((p) => (
+                    <div key={p.id} className="p-4 flex items-start justify-between gap-4 hover:bg-ink-50/50 dark:hover:bg-ink-900/30 transition-colors">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="font-semibold text-ink-900 dark:text-white text-base">{p.medicationName}</span>
+                          <Badge variant="primary">{p.dosage}</Badge>
+                          {p.duration && <Badge variant="neutral">{p.duration}</Badge>}
+                        </div>
+                        <p className="text-xs text-ink-500 dark:text-ink-400">
+                          Referred by <strong className="text-ink-700 dark:text-ink-200">{p.doctorName}</strong> on {formatDate(p.createdAt)}
+                        </p>
+                        {p.instructions && (
+                          <p className="text-xs text-ink-600 dark:text-ink-300">
+                            <span className="font-medium">Instructions:</span> {p.instructions}
+                          </p>
+                        )}
+                        {p.notes && (
+                          <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 p-2 rounded-lg mt-1.5">
+                            <span className="font-medium">Note:</span> {p.notes}
+                          </p>
+                        )}
+                      </div>
+                      {(user?.role === 'doctor' || user?.role === 'admin') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 p-1.5 shrink-0"
+                          onClick={() => handleDeletePrescription(p.id)}
+                          title="Remove prescription"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardBody>
+          </Card>
         </div>
       </div>
 
+      <SuggestMedicineModal open={suggestModalOpen} onClose={() => setSuggestModalOpen(false)} onSuccess={reload} patient={patient} />
       <PatientFormModal open={editOpen} onClose={() => setEditOpen(false)} onSuccess={reload} patient={patient} />
       <ConfirmDialog
         open={deleteOpen}

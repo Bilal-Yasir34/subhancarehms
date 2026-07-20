@@ -189,3 +189,18 @@ export interface StaffProfile {
   createdAt: string;
   tempCode?: string;
 }
+
+export interface Prescription {
+  id: string;
+  patientId: string;
+  doctorId?: string;
+  doctorName: string;
+  medicationId?: string;
+  medicationName: string;
+  dosage: string;
+  duration?: string;
+  instructions?: string;
+  notes?: string;
+  createdAt: string;
+}
+

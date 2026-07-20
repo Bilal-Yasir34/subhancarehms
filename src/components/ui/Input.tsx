@@ -21,7 +21,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative">
           {leftIcon && (
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500 pointer-events-none">
+            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-ink-400 dark:text-ink-500">
               {leftIcon}
             </span>
           )}
@@ -38,7 +38,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
           {rightIcon && (
-            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500">
+            <span className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-ink-400 dark:text-ink-500">
               {rightIcon}
             </span>
           )}
@@ -57,12 +57,12 @@ Input.displayName = 'Input';
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
-  options: { value: string; label: string }[];
+  options?: { value: string; label: string }[];
   placeholder?: string;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, options, placeholder, className, id, ...props }, ref) => {
+  ({ label, error, options, placeholder, children, className, id, ...props }, ref) => {
     const selectId = id || props.name;
     return (
       <div className="w-full">
@@ -82,9 +82,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           {...props}
         >
           {placeholder && <option value="">{placeholder}</option>}
-          {options.map((o) => (
+          {options ? options.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
+          )) : children}
         </select>
         {error && <p className="mt-1.5 text-xs text-danger-600 dark:text-danger-400">{error}</p>}
       </div>
