@@ -21,8 +21,7 @@ export function PrescriptionsPage() {
     setLoading(true);
     api.getPrescriptions({ patientId: user.patientId })
       .then((res) => setPrescriptions(res.items))
-      .catch((err) => {
-        console.error(err);
+      .catch(() => {
         setPrescriptions([]);
       })
       .finally(() => setLoading(false));

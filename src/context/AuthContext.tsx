@@ -96,8 +96,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     if (!data.session) throw new Error('Login failed — no session returned');
-    const u = await fetchProfile(data.session);
-    if (!u) throw new Error('No staff profile found for this account. Contact the administrator.');
+
+    let u: User | null = null;
+    try {
+      u = await fetchProfile(data.session);
+    } catch (err) {
+      await supabase.auth.signOut();
+      throw err;
+    }
+
+    if (!u) {
+      await supabase.auth.signOut();
+      throw new Error('No account or staff profile found for these credentials.');
+    }
+
     setUser(u);
     return u;
   }, [fetchProfile]);

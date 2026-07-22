@@ -23,7 +23,7 @@ export function RegisterUserPage() {
           setDepartment(names[0]);
         }
       }
-    }).catch(err => console.warn('Failed to load departments:', err));
+    }).catch(() => console.warn('Failed to load departments'));
   }, []);
   
   // Doctor fields

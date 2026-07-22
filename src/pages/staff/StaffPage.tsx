@@ -18,6 +18,9 @@ export function StaffPage() {
   const [deleteTarget, setDeleteTarget] = useState<StaffProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [viewTarget, setViewTarget] = useState<StaffProfile | null>(null);
+  const [viewTempCode, setViewTempCode] = useState<string | null>(null);
+  const [loadingTempCode, setLoadingTempCode] = useState(false);
+  const [showTempCode, setShowTempCode] = useState(false);
 
   const { data: staff, loading, reload } = useAsync(() => api.getStaffProfiles(), []);
 
@@ -35,6 +38,26 @@ export function StaffPage() {
       reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
+    }
+  };
+
+  const handleOpenViewModal = async (member: StaffProfile) => {
+    setViewTarget(member);
+    setViewTempCode(null);
+    setShowTempCode(false);
+  };
+
+  const handleRevealTempCode = async () => {
+    if (!viewTarget || loadingTempCode) return;
+    setLoadingTempCode(true);
+    try {
+      const code = await api.getTempCode(viewTarget.id);
+      setViewTempCode(code);
+      setShowTempCode(true);
+    } catch {
+      toast.error('Failed to fetch access code');
+    } finally {
+      setLoadingTempCode(false);
     }
   };
 
@@ -99,7 +122,7 @@ export function StaffPage() {
                             <div className="flex items-center gap-2">
                               <p className="font-semibold text-ink-900 dark:text-ink-100">{member.fullName}</p>
                               <button
-                                onClick={() => setViewTarget(member)}
+                                onClick={() => handleOpenViewModal(member)}
                                 className="p-1 rounded-lg text-ink-400 hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-500/15 transition-colors"
                                 aria-label="View Details"
                               >
@@ -260,11 +283,21 @@ export function StaffPage() {
                 <p className="font-semibold text-ink-800 dark:text-ink-200">{formatDate(viewTarget.createdAt)}</p>
               </div>
               <div className="p-3 bg-primary-50/50 dark:bg-primary-950/20 border border-primary-100 dark:border-primary-900/30 rounded-xl col-span-1 sm:col-span-2 flex items-center justify-between">
-                <div className="space-y-1">
+                <div className="space-y-1 flex-1">
                   <p className="text-xs font-medium text-primary-600 dark:text-primary-400">Temporary Access Code</p>
-                  <p className="text-base font-mono font-bold tracking-widest text-primary-700 dark:text-primary-300">
-                    {viewTarget.tempCode || 'Not Assigned (Run DB SQL migration)'}
-                  </p>
+                  {showTempCode ? (
+                    <p className="text-base font-mono font-bold tracking-widest text-primary-700 dark:text-primary-300">
+                      {viewTempCode ?? 'Not Assigned'}
+                    </p>
+                  ) : (
+                    <button
+                      onClick={handleRevealTempCode}
+                      disabled={loadingTempCode}
+                      className="text-sm text-primary-600 dark:text-primary-400 underline hover:no-underline disabled:opacity-50"
+                    >
+                      {loadingTempCode ? 'Loading…' : 'Click to reveal'}
+                    </button>
+                  )}
                 </div>
                 <Key className="h-6 w-6 text-primary-500 shrink-0" />
               </div>
@@ -310,7 +343,7 @@ function StaffFormModal({ staff, saving, onSave, onClose }: {
   useEffect(() => {
     api.getDoctors({ pageSize: 100 })
       .then((res) => setDoctors(res.items))
-      .catch((err) => console.error('Failed to load doctors', err));
+      .catch(() => console.warn('Failed to load doctors list'));
 
     api.getDepartments().then((list) => {
       if (list.length > 0) {
@@ -320,7 +353,7 @@ function StaffFormModal({ staff, saving, onSave, onClose }: {
           setForm(f => ({ ...f, department: names[0] }));
         }
       }
-    }).catch(err => console.error('Failed to load departments', err));
+    }).catch(() => console.warn('Failed to load departments list'));
   }, []);
 
   const update = (key: keyof StaffFormData, value: StaffFormData[keyof StaffFormData]) =>

@@ -84,8 +84,7 @@ export function PatientDashboardPage() {
       setNotes('');
       setPdfFile(null);
       reload();
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error('Failed to add record');
     } finally {
       setSavingRecord(false);

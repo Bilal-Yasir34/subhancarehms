@@ -94,8 +94,8 @@ export function BillingPage() {
       const res = await api.getInvoices(params);
       setInvoices(res.items);
       setTotal(res.total);
-    } catch (err) {
-      console.error('getInvoices failed:', err);
+    } catch {
+      // Do not log the raw error — Supabase errors may contain query context
       setInvoices([]);
     } finally {
       setLoading(false);

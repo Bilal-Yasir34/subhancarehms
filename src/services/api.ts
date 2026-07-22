@@ -261,7 +261,8 @@ function mapStaffProfile(row: any): StaffProfile {
     department: row.department,
     active: row.active,
     createdAt: row.created_at,
-    tempCode: row.temp_code,
+    // tempCode is intentionally excluded from the bulk mapper.
+    // Use api.getTempCode(id) when the admin explicitly needs it for one user.
   };
 }
 
@@ -411,7 +412,8 @@ export const api = {
       .from('medical-reports')
       .upload(fileName, file, { cacheControl: '3600', upsert: false });
     if (error) {
-      console.warn('Storage upload error, fallback to URL:', error.message);
+      // Do not log error.message — it may contain internal storage path info
+      console.warn('Storage upload error, falling back to object URL');
       return URL.createObjectURL(file);
     }
     const { data: publicUrlData } = supabase.storage.from('medical-reports').getPublicUrl(fileName);
@@ -1158,9 +1160,25 @@ export const api = {
 
   // ----- Staff management -----
   async getStaffProfiles(): Promise<StaffProfile[]> {
-    const { data, error } = await supabase.from('staff_profiles').select('*').order('created_at', { ascending: false });
+    // Explicitly select only non-sensitive columns. temp_code is excluded.
+    const { data, error } = await supabase
+      .from('staff_profiles')
+      .select('id, full_name, email, role, phone, avatar, doctor_id, patient_id, department, active, created_at')
+      .order('created_at', { ascending: false });
     if (error) throw error;
     return (data ?? []).map(mapStaffProfile);
+  },
+
+  // Returns the temp code for a single staff member. Admin-only use; never
+  // call this in a list/bulk context.
+  async getTempCode(staffId: string): Promise<string | null> {
+    const { data, error } = await supabase
+      .from('staff_profiles')
+      .select('temp_code')
+      .eq('id', staffId)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.temp_code ?? null;
   },
 
   async checkEmailExists(email: string): Promise<boolean> {
@@ -1208,28 +1226,40 @@ export const api = {
   },
 
   async deleteStaffProfile(id: string): Promise<void> {
-    // 1. Fetch profile to check linked records
+    // 1. First try calling the RPC function delete_user_account (purges auth.users + linked records)
+    try {
+      const { data: success, error: rpcErr } = await supabase.rpc('delete_user_account', { p_user_id: id });
+      if (!rpcErr && success !== false) {
+        return;
+      }
+    } catch {
+      // Fallback below if RPC is missing
+    }
+
+    // 2. Fetch profile to check linked records
     const { data: profile } = await supabase
       .from('staff_profiles')
       .select('doctor_id, patient_id')
       .eq('id', id)
       .maybeSingle();
 
-    // 2. Delete all notifications targeted to this user
+    // 3. Delete all notifications targeted to this user
     await supabase.from('notifications').delete().eq('target_user_id', id);
 
-    // 3. Delete the staff profile row
-    const { error } = await supabase.from('staff_profiles').delete().eq('id', id);
-    if (error) throw error;
-
-    // 3. Clean up linked doctor (if any)
+    // 4. Clean up linked doctor (if any)
     if (profile?.doctor_id) {
       await supabase.from('doctors').delete().eq('id', profile.doctor_id);
     }
 
-    // 4. Clean up linked patient (if any)
+    // 5. Clean up linked patient (if any)
     if (profile?.patient_id) {
       await supabase.from('patients').delete().eq('id', profile.patient_id);
+    }
+
+    // 6. Delete staff_profiles row (or mark inactive if delete blocked by RLS)
+    const { error: deleteError } = await supabase.from('staff_profiles').delete().eq('id', id);
+    if (deleteError) {
+      await supabase.from('staff_profiles').update({ active: false }).eq('id', id);
     }
   },
 

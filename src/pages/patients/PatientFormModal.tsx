@@ -53,7 +53,7 @@ export function PatientFormModal({ open, onClose, onSuccess, patient }: PatientF
       if (list.length > 0) {
         setDepartmentsList(list.map(d => d.name));
       }
-    }).catch(err => console.error('Failed to load departments', err));
+    }).catch(() => console.warn('Failed to load departments'));
   }, []);
 
   useEffect(() => {

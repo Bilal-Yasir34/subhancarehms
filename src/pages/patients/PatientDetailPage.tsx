@@ -72,8 +72,7 @@ export function PatientDetailPage() {
       setNotes('');
       setPdfFile(null);
       reload();
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error('Failed to add medical record');
     } finally {
       setSavingRecord(false);
@@ -113,8 +112,7 @@ export function PatientDetailPage() {
         setPatient(p);
         loadPrescriptions(p.id);
       })
-      .catch((err) => {
-        console.error(err);
+      .catch(() => {
         setPatient(null);
       })
       .finally(() => {
@@ -129,8 +127,7 @@ export function PatientDetailPage() {
           setPatient(p);
           loadPrescriptions(p.id);
         })
-        .catch((err) => {
-          console.error(err);
+        .catch(() => {
           setPatient(null);
         });
     }

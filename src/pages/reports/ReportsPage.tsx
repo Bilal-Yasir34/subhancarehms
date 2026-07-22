@@ -113,8 +113,7 @@ export function ReportsPage() {
       setNotes('');
       setPdfFile(null);
       loadPatientDetail();
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error('Failed to upload report');
     } finally {
       setSavingRecord(false);

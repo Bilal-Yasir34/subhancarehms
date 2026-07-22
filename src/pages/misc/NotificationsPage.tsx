@@ -472,7 +472,7 @@ export function NotificationsPage() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications' },
         () => {
-          api.getNotifications().then(setNotifications).catch(console.error);
+          api.getNotifications().then(setNotifications).catch(() => {});
         }
       )
       .subscribe();
@@ -513,8 +513,8 @@ export function NotificationsPage() {
       setNotifications((prev) =>
         prev.map((item) => (item.id === n.id ? { ...item, read: true } : item)),
       );
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Silently ignore — non-critical UI update
     }
   };
 

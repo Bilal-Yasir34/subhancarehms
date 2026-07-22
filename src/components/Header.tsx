@@ -160,8 +160,8 @@ export function Header({ onMenuClick }: HeaderProps) {
             });
           });
         }
-      } catch (err) {
-        console.error('Search failed', err);
+      } catch {
+        // Swallow search errors silently — do not log potentially sensitive query data
       } finally {
         setSearchResults(results);
         setSearchLoading(false);
@@ -208,7 +208,9 @@ export function Header({ onMenuClick }: HeaderProps) {
         .then(() => {
           setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         })
-        .catch(console.error);
+        .catch(() => {
+          // Silently ignore — non-critical background update
+        });
     }
   }, [notifOpen, unread]);
 
@@ -424,8 +426,8 @@ export function Header({ onMenuClick }: HeaderProps) {
                               try {
                                 await api.markNotificationRead(n.id);
                                 setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item));
-                              } catch (err) {
-                                console.error(err);
+                              } catch {
+                                // Silently ignore mark-read errors
                               }
                             }
                           }}

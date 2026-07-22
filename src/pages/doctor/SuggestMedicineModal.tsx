@@ -35,8 +35,7 @@ export function SuggestMedicineModal({ open, onClose, onSuccess, patient }: Sugg
             setSelectedMedId(res.items[0].id);
           }
         })
-        .catch((err) => {
-          console.error(err);
+        .catch(() => {
           toast.error('Failed to load pharmacy medications');
         })
         .finally(() => setLoadingItems(false));
@@ -79,8 +78,7 @@ export function SuggestMedicineModal({ open, onClose, onSuccess, patient }: Sugg
       setNotes('');
       onSuccess();
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error('Failed to submit prescription');
     } finally {
       setSubmitting(false);
