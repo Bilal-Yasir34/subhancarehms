@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Pill, Search, Calendar, User, Clock, Info, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Pill, Search, Calendar, User, Clock, Info, CheckCircle2 } from 'lucide-react';
 import { Card, CardBody, Input, Badge, EmptyState, SkeletonCard } from '../../components/ui';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';

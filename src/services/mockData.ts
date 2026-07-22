@@ -178,7 +178,6 @@ export const patients: Patient[] = Array.from({ length: 48 }, (_, i) => {
 
 // ----- Appointments -----
 const APPT_TYPES: Appointment['type'][] = ['consultation', 'follow-up', 'emergency', 'surgery', 'checkup'];
-// const APPT_STATUSES: Appointment['status'][] = ['scheduled', 'completed', 'cancelled', 'no-show', 'in-progress'];
 const APPT_REASONS = ['Routine checkup', 'Chest pain evaluation', 'Follow-up consultation', 'Pre-surgery assessment', 'Post-op review', 'Lab result discussion', 'Vaccination', 'Chronic condition management'];
 
 export const appointments: Appointment[] = Array.from({ length: 40 }, (_, i) => {

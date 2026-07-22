@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from './supabase';
+import { signupRateLimiter } from '../utils/rateLimiter';
 import type {
   Patient, Doctor, Appointment, Invoice, Department, ActivityItem, Notification,
   UserRole, StaffProfile, InventoryItem, MedicalRecord, BloodBankStock, Prescription,
@@ -1192,12 +1193,18 @@ export const api = {
   },
 
   async createStaffUser(email: string, password: string, fullName: string, role: UserRole, doctorId?: string, department?: string, patientId?: string, phone?: string): Promise<void> {
+    const rateCheck = signupRateLimiter.check(email);
+    if (!rateCheck.allowed) {
+      throw new Error(`Too many user creation attempts. Please try again after ${rateCheck.retryAfterSeconds} seconds.`);
+    }
+    signupRateLimiter.increment(email);
+
     // Use a separate, isolated Supabase client so that signUp does NOT fire
     // onAuthStateChange on the main client. This keeps the admin's session and
     // AuthContext completely untouched during new-user registration.
     const isolatedClient = createClient(
-      import.meta.env.VITE_SUPABASE_URL as string,
-      import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      supabaseUrl,
+      supabaseAnonKey,
       { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
     );
 

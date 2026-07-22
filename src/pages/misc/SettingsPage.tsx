@@ -8,8 +8,9 @@ import { Tabs } from '../../components/Tabs';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { api } from '../../services/api';
-import { supabase } from '../../services/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../../services/supabase';
 import { cn } from '../../utils';
+import { passwordResetRateLimiter } from '../../utils/rateLimiter';
 
 export function SettingsPage() {
   const { user, refreshUser, logout } = useAuth();
@@ -117,14 +118,21 @@ export function SettingsPage() {
     if (newPassword !== confirmPassword) { toast.error('New passwords do not match'); return; }
     if (currentPassword === newPassword) { toast.error('New password must be different from your current password'); return; }
 
+    const rateCheck = passwordResetRateLimiter.check(user.email);
+    if (!rateCheck.allowed) {
+      toast.error(`Too many password update attempts. Please try again after ${rateCheck.retryAfterSeconds} seconds.`);
+      return;
+    }
+    passwordResetRateLimiter.increment(user.email);
+
     setSavingPassword(true);
     try {
       // Verify current password using an isolated client so that signInWithPassword
       // does NOT trigger onAuthStateChange on the main client.
       const { createClient } = await import('@supabase/supabase-js');
       const verifyClient = createClient(
-        import.meta.env.VITE_SUPABASE_URL as string,
-        import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+        supabaseUrl,
+        supabaseAnonKey,
         { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
       );
       const { error: signInError } = await verifyClient.auth.signInWithPassword({
@@ -135,6 +143,8 @@ export function SettingsPage() {
 
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
+
+      passwordResetRateLimiter.reset(user.email);
 
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
       toast.success('Password updated successfully! Use your new password next time you log in.');

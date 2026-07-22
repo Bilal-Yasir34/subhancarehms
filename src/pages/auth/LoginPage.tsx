@@ -8,6 +8,9 @@ import { Input, Button } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
 
+import { loginRateLimiter } from '../../utils/rateLimiter';
+import { getSanitizedErrorMessage } from '../../utils/errorHandler';
+
 interface LoginForm {
   email: string;
   password: string;
@@ -35,14 +38,22 @@ export function LoginPage() {
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
 
   const onSubmit = async (data: LoginForm) => {
+    const rateCheck = loginRateLimiter.check(data.email.trim().toLowerCase());
+    if (!rateCheck.allowed) {
+      toast.error(`Too many login attempts. Please wait ${rateCheck.retryAfterSeconds} seconds before trying again.`);
+      return;
+    }
+
     setLoading(true);
     try {
       const user = await login(data.email, data.password);
+      loginRateLimiter.reset(data.email.trim().toLowerCase());
       toast.success(`Welcome back, ${user.name.split(' ')[0]}!`);
       const dest = from ?? ROLE_HOME[user.role] ?? '/dashboard';
       navigate(dest, { replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Login failed');
+      loginRateLimiter.increment(data.email.trim().toLowerCase());
+      toast.error(getSanitizedErrorMessage(err, 'Invalid email address or password'));
     } finally {
       setLoading(false);
     }

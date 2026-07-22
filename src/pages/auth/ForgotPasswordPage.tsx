@@ -8,6 +8,9 @@ import { Input, Button } from '../../components/ui';
 import { supabase } from '../../services/supabase';
 import { cn } from '../../utils';
 
+import { otpRateLimiter, passwordResetRateLimiter } from '../../utils/rateLimiter';
+import { getSanitizedErrorMessage } from '../../utils/errorHandler';
+
 interface Step1Form {
   email: string;
   code: string;
@@ -51,26 +54,36 @@ export function ForgotPasswordPage() {
 
   // Submit Step 1: Verify Code
   const onVerifyCode = async (data: Step1Form) => {
+    const trimmedEmail = data.email.trim().toLowerCase();
+    const rateCheck = otpRateLimiter.check(trimmedEmail);
+    if (!rateCheck.allowed) {
+      toast.error(`Too many verification attempts. Please wait ${rateCheck.retryAfterSeconds} seconds before trying again.`);
+      return;
+    }
+
     setLoading(true);
     try {
       const { data: isValid, error } = await supabase.rpc('verify_temp_code', {
-        p_email: data.email.trim(),
+        p_email: trimmedEmail,
         p_temp_code: data.code.trim(),
       });
 
       if (error) throw error;
 
       if (!isValid) {
+        otpRateLimiter.increment(trimmedEmail);
         toast.error('Invalid email address or temporary access code.');
         return;
       }
 
-      setEmail(data.email.trim());
+      otpRateLimiter.reset(trimmedEmail);
+      setEmail(trimmedEmail);
       setCode(data.code.trim());
       setStep(2);
       toast.success('Access code verified.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Verification failed.');
+      otpRateLimiter.increment(trimmedEmail);
+      toast.error(getSanitizedErrorMessage(err, 'Verification failed.'));
     } finally {
       setLoading(false);
     }
@@ -78,6 +91,12 @@ export function ForgotPasswordPage() {
 
   // Submit Step 2: Set New Password
   const onResetPassword = async (data: Step2Form) => {
+    const rateCheck = passwordResetRateLimiter.check(email);
+    if (!rateCheck.allowed) {
+      toast.error(`Too many password reset attempts. Please wait ${Math.ceil(rateCheck.retryAfterSeconds / 60)} minutes before trying again.`);
+      return;
+    }
+
     setLoading(true);
     try {
       const { data: success, error } = await supabase.rpc('reset_password_with_temp_code', {
@@ -89,15 +108,18 @@ export function ForgotPasswordPage() {
       if (error) throw error;
 
       if (!success) {
+        passwordResetRateLimiter.increment(email);
         toast.error('Failed to reset password. The code may have already been used.');
         return;
       }
 
+      passwordResetRateLimiter.reset(email);
       setDone(true);
       toast.success('Password updated successfully');
       setTimeout(() => navigate('/login'), 2200);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Reset failed');
+      passwordResetRateLimiter.increment(email);
+      toast.error(getSanitizedErrorMessage(err, 'Password reset failed.'));
     } finally {
       setLoading(false);
     }

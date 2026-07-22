@@ -110,7 +110,7 @@ export function PatientDetailPage() {
     api.getPatient(id)
       .then((p) => {
         setPatient(p);
-        loadPrescriptions(p.id);
+        if (p) loadPrescriptions(p.id);
       })
       .catch(() => {
         setPatient(null);
@@ -125,7 +125,7 @@ export function PatientDetailPage() {
       api.getPatient(id)
         .then((p) => {
           setPatient(p);
-          loadPrescriptions(p.id);
+          if (p) loadPrescriptions(p.id);
         })
         .catch(() => {
           setPatient(null);
