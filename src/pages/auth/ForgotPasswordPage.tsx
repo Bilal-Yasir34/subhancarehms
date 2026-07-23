@@ -63,16 +63,16 @@ export function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      const { data: isValid, error } = await supabase.rpc('verify_temp_code', {
+      const { data: isValid, error } = await supabase.rpc('verify_reset_token', {
         p_email: trimmedEmail,
-        p_temp_code: data.code.trim(),
+        p_token: data.code.trim(),
       });
 
       if (error) throw error;
 
       if (!isValid) {
         otpRateLimiter.increment(trimmedEmail);
-        toast.error('Invalid email address or temporary access code.');
+        toast.error('Invalid email address or expired reset token.');
         return;
       }
 
@@ -80,7 +80,7 @@ export function ForgotPasswordPage() {
       setEmail(trimmedEmail);
       setCode(data.code.trim());
       setStep(2);
-      toast.success('Access code verified.');
+      toast.success('Reset token verified.');
     } catch (err) {
       otpRateLimiter.increment(trimmedEmail);
       toast.error(getSanitizedErrorMessage(err, 'Verification failed.'));
@@ -99,9 +99,9 @@ export function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      const { data: success, error } = await supabase.rpc('reset_password_with_temp_code', {
+      const { data: success, error } = await supabase.rpc('reset_password_with_token', {
         p_email: email,
-        p_temp_code: code,
+        p_token: code,
         p_new_password: data.password,
       });
 
@@ -109,7 +109,7 @@ export function ForgotPasswordPage() {
 
       if (!success) {
         passwordResetRateLimiter.increment(email);
-        toast.error('Failed to reset password. The code may have already been used.');
+        toast.error('Failed to reset password. The token may have expired or already been used.');
         return;
       }
 
@@ -150,7 +150,7 @@ export function ForgotPasswordPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-ink-900 dark:text-white">Forgot password?</h1>
             <p className="mt-2 text-sm text-ink-500 dark:text-ink-400 leading-relaxed">
-              Ask the system admin for your temporary access code to reset your password.
+              Ask your system administrator for a password reset token.
             </p>
           </div>
 
@@ -168,15 +168,14 @@ export function ForgotPasswordPage() {
             />
 
             <Input
-              label="Temporary Access Code"
+              label="Reset Token"
               type="text"
-              maxLength={4}
-              placeholder="4-digit code"
+              placeholder="Paste 64-character token"
               leftIcon={<Key className="h-4 w-4" />}
               error={err1.code?.message}
               {...reg1('code', {
-                required: 'Access code is required',
-                pattern: { value: /^\d{4}$/, message: 'Must be exactly 4 digits' },
+                required: 'Reset token is required',
+                minLength: { value: 16, message: 'Invalid token format' },
               })}
             />
 

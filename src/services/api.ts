@@ -408,10 +408,23 @@ export const api = {
   },
 
   async uploadReportPdf(file: File): Promise<string> {
-    const fileName = `${crypto.randomUUID()}-${file.name}`;
+    // Security: validate file type, extension, and size before uploading
+    const ALLOWED_MIME = 'application/pdf';
+    const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+    if (file.type !== ALLOWED_MIME) {
+      throw new Error('Only PDF files are allowed for medical reports.');
+    }
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      throw new Error('File must have a .pdf extension.');
+    }
+    if (file.size > MAX_SIZE_BYTES) {
+      throw new Error('File size must not exceed 10 MB.');
+    }
+    // Use a UUID-based filename — never trust the user-supplied name
+    const fileName = `${crypto.randomUUID()}.pdf`;
     const { error } = await supabase.storage
       .from('medical-reports')
-      .upload(fileName, file, { cacheControl: '3600', upsert: false });
+      .upload(fileName, file, { cacheControl: '3600', upsert: false, contentType: 'application/pdf' });
     if (error) {
       // Do not log error.message — it may contain internal storage path info
       console.warn('Storage upload error, falling back to object URL');
@@ -683,7 +696,10 @@ export const api = {
     const items = (data.items ?? []).map((it) => ({
       id: it.id, description: it.description, category: it.category, quantity: it.quantity, unit_price: it.unitPrice,
     }));
+    // Always recalculate subtotal server-side — never trust the client value
     const subtotal = (data.items ?? []).reduce((s, it) => s + it.unitPrice * it.quantity, 0);
+    // Clamp discount: must be >= 0 and cannot exceed the subtotal (prevents billing fraud)
+    const discount = Math.min(Math.max(0, data.discount ?? 0), subtotal);
     const tax = 0;
     const invNum = `INV-2026-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`;
     const row = {
@@ -694,7 +710,8 @@ export const api = {
       subtotal,
       tax_rate: 0,
       tax,
-      total: subtotal - (data.discount ?? 0),
+      discount,
+      total: subtotal - discount,
       amount_paid: 0,
       status: 'pending',
       due_date: new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -903,7 +920,14 @@ export const api = {
   },
 
   async markNotificationRead(id: string): Promise<void> {
-    const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    // Only mark notifications that are actually visible to this user
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', id)
+      .or(`target_type.eq.broadcast,and(target_type.eq.individual,target_user_id.eq.${user.id})`);
     if (error) throw error;
   },
 
@@ -1170,7 +1194,7 @@ export const api = {
     return (data ?? []).map(mapStaffProfile);
   },
 
-  // Returns the temp code for a single staff member. Admin-only use; never
+  // Returns the legacy temp code for a single staff member. Admin-only use; never
   // call this in a list/bulk context.
   async getTempCode(staffId: string): Promise<string | null> {
     const { data, error } = await supabase
@@ -1180,6 +1204,16 @@ export const api = {
       .maybeSingle();
     if (error) throw error;
     return data?.temp_code ?? null;
+  },
+
+  // Generates a secure 256-bit reset token for a staff member (admin-only).
+  // The token is valid for 15 minutes and is single-use.
+  // Returns the hex token string so the admin can pass it to the staff member.
+  async generateResetToken(staffId: string): Promise<string> {
+    const { data, error } = await supabase.rpc('generate_reset_token', { p_user_id: staffId });
+    if (error) throw error;
+    if (!data) throw new Error('Failed to generate reset token.');
+    return data as string;
   },
 
   async checkEmailExists(email: string): Promise<boolean> {

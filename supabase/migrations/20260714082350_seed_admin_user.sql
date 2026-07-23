@@ -5,9 +5,9 @@ Creates the initial admin user in auth.users with email/password auth.
 The trigger on auth.users will automatically create a staff_profile row.
 We then promote that profile to role='admin'.
 
-Admin credentials:
-- Email: admin@subhancare.com
-- Password: Admin@123
+NOTE: The default password used here is for initial seeding only.
+Change it immediately via the Supabase Dashboard or the app Settings page.
+Never store real credentials in migration files.
 */
 
 DO $$

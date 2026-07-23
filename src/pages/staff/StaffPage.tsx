@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, UserCog, Edit2, Power, Mail, Phone, Trash2, Key, Eye } from 'lucide-react';
+import { Plus, Search, UserCog, Edit2, Power, Mail, Phone, Trash2, Key, Eye, Copy, CheckCheck, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardBody, Button, Input, Select, Badge, Modal, Avatar, SkeletonCard, EmptyState, ConfirmDialog } from '../../components/ui';
 import { api } from '../../services/api';
@@ -18,9 +18,9 @@ export function StaffPage() {
   const [deleteTarget, setDeleteTarget] = useState<StaffProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [viewTarget, setViewTarget] = useState<StaffProfile | null>(null);
-  const [viewTempCode, setViewTempCode] = useState<string | null>(null);
-  const [loadingTempCode, setLoadingTempCode] = useState(false);
-  const [showTempCode, setShowTempCode] = useState(false);
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [generatingToken, setGeneratingToken] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
 
   const { data: staff, loading, reload } = useAsync(() => api.getStaffProfiles(), []);
 
@@ -43,22 +43,31 @@ export function StaffPage() {
 
   const handleOpenViewModal = async (member: StaffProfile) => {
     setViewTarget(member);
-    setViewTempCode(null);
-    setShowTempCode(false);
+    setResetToken(null);
+    setTokenCopied(false);
   };
 
-  const handleRevealTempCode = async () => {
-    if (!viewTarget || loadingTempCode) return;
-    setLoadingTempCode(true);
+  const handleGenerateResetToken = async () => {
+    if (!viewTarget || generatingToken) return;
+    setGeneratingToken(true);
+    setTokenCopied(false);
     try {
-      const code = await api.getTempCode(viewTarget.id);
-      setViewTempCode(code);
-      setShowTempCode(true);
+      const token = await api.generateResetToken(viewTarget.id);
+      setResetToken(token);
+      toast.success('Reset token generated — valid for 15 minutes.');
     } catch {
-      toast.error('Failed to fetch access code');
+      toast.error('Failed to generate reset token.');
     } finally {
-      setLoadingTempCode(false);
+      setGeneratingToken(false);
     }
+  };
+
+  const handleCopyToken = () => {
+    if (!resetToken) return;
+    navigator.clipboard.writeText(resetToken).then(() => {
+      setTokenCopied(true);
+      setTimeout(() => setTokenCopied(false), 3000);
+    });
   };
 
   const handleDelete = async () => {
@@ -282,24 +291,47 @@ export function StaffPage() {
                 <p className="text-xs font-medium text-ink-400">Date Joined</p>
                 <p className="font-semibold text-ink-800 dark:text-ink-200">{formatDate(viewTarget.createdAt)}</p>
               </div>
-              <div className="p-3 bg-primary-50/50 dark:bg-primary-950/20 border border-primary-100 dark:border-primary-900/30 rounded-xl col-span-1 sm:col-span-2 flex items-center justify-between">
-                <div className="space-y-1 flex-1">
-                  <p className="text-xs font-medium text-primary-600 dark:text-primary-400">Temporary Access Code</p>
-                  {showTempCode ? (
-                    <p className="text-base font-mono font-bold tracking-widest text-primary-700 dark:text-primary-300">
-                      {viewTempCode ?? 'Not Assigned'}
-                    </p>
-                  ) : (
-                    <button
-                      onClick={handleRevealTempCode}
-                      disabled={loadingTempCode}
-                      className="text-sm text-primary-600 dark:text-primary-400 underline hover:no-underline disabled:opacity-50"
-                    >
-                      {loadingTempCode ? 'Loading…' : 'Click to reveal'}
-                    </button>
-                  )}
+              <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-xl col-span-1 sm:col-span-2 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Password Reset Token</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    leftIcon={<RefreshCw className={`h-3.5 w-3.5 ${generatingToken ? 'animate-spin' : ''}`} />}
+                    onClick={handleGenerateResetToken}
+                    loading={generatingToken}
+                    className="border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/30"
+                  >
+                    {resetToken ? 'Regenerate' : 'Generate Token'}
+                  </Button>
                 </div>
-                <Key className="h-6 w-6 text-primary-500 shrink-0" />
+
+                {resetToken ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs font-mono bg-white dark:bg-ink-900 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-2 text-amber-800 dark:text-amber-300 break-all select-all">
+                        {resetToken}
+                      </code>
+                      <button
+                        onClick={handleCopyToken}
+                        className="shrink-0 p-2 rounded-lg border border-amber-200 dark:border-amber-800/40 bg-white dark:bg-ink-900 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                        aria-label="Copy token"
+                      >
+                        {tokenCopied ? <CheckCheck className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-amber-600 dark:text-amber-500">
+                      ⏱ Expires in 15 minutes · Single-use · Share this with the staff member securely.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-600 dark:text-amber-500">
+                    Click "Generate Token" to create a secure one-time reset link for this staff member.
+                  </p>
+                )}
               </div>
             </div>
           </div>

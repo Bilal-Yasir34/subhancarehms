@@ -109,6 +109,12 @@ export function PatientDetailPage() {
     setLoading(true);
     api.getPatient(id)
       .then((p) => {
+        // IDOR guard: patients may only view their own record
+        if (p && user?.role === 'patient' && user.patientId !== p.id) {
+          toast.error('You do not have permission to view this record.');
+          navigate('/dashboard');
+          return;
+        }
         setPatient(p);
         if (p) loadPrescriptions(p.id);
       })
@@ -118,7 +124,7 @@ export function PatientDetailPage() {
       .finally(() => {
         setLoading(false);
       });
-  }, [id]);
+  }, [id, user, navigate]);
 
   const reload = () => {
     if (id) {
