@@ -304,7 +304,7 @@ export const api = {
   async getPatients(params?: { page?: number; pageSize?: number; search?: string; status?: string; department?: string }): Promise<{ items: Patient[]; total: number }> {
     let query = supabase.from('patients').select('*', { count: 'exact' });
     if (params?.search) {
-      const q = params.search;
+      const q = params.search.slice(0, 200); // cap length to prevent resource exhaustion
       query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,mrn.ilike.%${q}%,email.ilike.%${q}%`);
     }
     if (params?.status && params.status !== 'all') query = query.eq('status', params.status);
@@ -456,7 +456,7 @@ export const api = {
   async getDoctors(params?: { page?: number; pageSize?: number; search?: string; department?: string; status?: string }): Promise<{ items: Doctor[]; total: number }> {
     let query = supabase.from('doctors').select('*', { count: 'exact' });
     if (params?.search) {
-      const q = params.search;
+      const q = params.search.slice(0, 200); // cap length to prevent resource exhaustion
       query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,specialty.ilike.%${q}%,department.ilike.%${q}%`);
     }
     if (params?.department && params.department !== 'all') query = query.eq('department', params.department);
@@ -517,7 +517,7 @@ export const api = {
     let query = supabase.from('appointments').select('*', { count: 'exact' });
     if (params?.patientId) query = query.eq('patient_id', params.patientId);
     if (params?.search) {
-      const q = params.search;
+      const q = params.search.slice(0, 200); // cap length to prevent resource exhaustion
       query = query.or(`patient_name.ilike.%${q}%,doctor_name.ilike.%${q}%`);
     }
     if (params?.status && params.status !== 'all') query = query.eq('status', params.status);
@@ -763,8 +763,10 @@ export const api = {
   },
 
   async markInvoicePaid(id: string, method: Invoice['paymentMethod']): Promise<void> {
-    const { data: inv } = await supabase.from('invoices').select('total, invoice_number, patient_name').eq('id', id).maybeSingle();
+    const { data: inv } = await supabase.from('invoices').select('total, status, invoice_number, patient_name').eq('id', id).maybeSingle();
     if (!inv) throw new Error('Invoice not found');
+    // Guard against marking an already-paid invoice as paid again (prevents duplicate audit log entries)
+    if (inv.status === 'paid') throw new Error('This invoice has already been marked as paid.');
     const { error } = await supabase.from('invoices')
       .update({ status: 'paid', amount_paid: inv.total, payment_method: method })
       .eq('id', id);
@@ -1176,8 +1178,19 @@ export const api = {
 
   async updateBloodBankStock(id: string, data: { unitsAvailable?: number; reorderLevel?: number; location?: string }): Promise<void> {
     const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (data.unitsAvailable !== undefined) row.units_available = data.unitsAvailable;
-    if (data.reorderLevel !== undefined) row.reorder_level = data.reorderLevel;
+    if (data.unitsAvailable !== undefined) {
+      // Validate: must be a non-negative integer
+      if (!Number.isInteger(data.unitsAvailable) || data.unitsAvailable < 0) {
+        throw new Error('Blood bank units must be a non-negative whole number.');
+      }
+      row.units_available = data.unitsAvailable;
+    }
+    if (data.reorderLevel !== undefined) {
+      if (!Number.isInteger(data.reorderLevel) || data.reorderLevel < 0) {
+        throw new Error('Reorder level must be a non-negative whole number.');
+      }
+      row.reorder_level = data.reorderLevel;
+    }
     if (data.location !== undefined) row.location = data.location;
     const { error } = await supabase.from('blood_bank_stock').update(row).eq('id', id);
     if (error) throw error;

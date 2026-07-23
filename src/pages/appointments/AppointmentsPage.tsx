@@ -55,6 +55,10 @@ export function AppointmentsPage() {
       if (user?.role === 'doctor' && user?.doctorId) {
         params.doctorId = user.doctorId;
       }
+      // Patients may only see their own appointments — never the full list
+      if (user?.role === 'patient' && user?.patientId) {
+        params.patientId = user.patientId;
+      }
       const res = await api.getAppointments(params);
       setAppointments(res.items);
       setTotal(res.total);
@@ -70,6 +74,10 @@ export function AppointmentsPage() {
     const params: Parameters<typeof api.getAppointments>[0] = { pageSize: 200 };
     if (user?.role === 'doctor' && user?.doctorId) {
       params.doctorId = user.doctorId;
+    }
+    // Calendar view also scoped to patient's own appointments
+    if (user?.role === 'patient' && user?.patientId) {
+      params.patientId = user.patientId;
     }
     api.getAppointments(params).then((r) => setCalAppts(r.items)).catch(() => {});
   }, [load, user]);
